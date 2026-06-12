@@ -62,15 +62,15 @@
       </div>
       <div class="form-group">
         <label>担当者</label>
-        <input type="text" id="person_in_charge">
+        <input type="text" id="manager_name">
       </div>
       <div class="form-group">
         <label>建て方予定年</label>
-        <input type="number" id="tatekata_year" placeholder="例：2026">
+        <input type="number" id="erection_year" placeholder="例：2026">
       </div>
       <div class="form-group">
         <label>建て方予定月</label>
-        <select id="tatekata_month">
+        <select id="erection_month">
           <option value="">選択</option>
           <option>1</option><option>2</option><option>3</option><option>4</option>
           <option>5</option><option>6</option><option>7</option><option>8</option>
@@ -79,7 +79,7 @@
       </div>
       <div class="form-group">
         <label>建て方予定時期</label>
-        <select id="tatekata_period">
+        <select id="erection_period">
           <option value="">選択</option>
           <option>上旬</option><option>中旬</option><option>下旬</option>
         </select>
@@ -104,10 +104,10 @@
           <td>${p.project_code || ''}</td>
           <td>${p.project_name || ''}</td>
           <td>${p.general_contractor || ''}</td>
-          <td>${p.person_in_charge || ''}</td>
-          <td>${p.tatekata_year || ''}年${p.tatekata_month || ''}月${p.tatekata_period || ''}</td>
+          <td>${p.manager_name || ''}</td>
+          <td>${p.erection_year || ''}年${p.erection_month || ''}月${p.erection_period || ''}</td>
           <td class="status-${p.order_status}">${p.order_status || '未着手'}</td>
-          <td class="status-${p.toiai_status}">${p.toiai_status || '未着手'}</td>
+          <td class="status-${p.cutting_status}">${p.cutting_status || '未着手'}</td>
           <td class="status-${p.invoice_status}">${p.invoice_status || '未着手'}</td>
         </tr>`).join('');
     }
@@ -120,12 +120,12 @@
         project_code: document.getElementById('project_code').value,
         project_name: document.getElementById('project_name').value,
         general_contractor: document.getElementById('general_contractor').value,
-        person_in_charge: document.getElementById('person_in_charge').value,
-        tatekata_year: document.getElementById('tatekata_year').value,
-        tatekata_month: document.getElementById('tatekata_month').value,
-        tatekata_period: document.getElementById('tatekata_period').value,
+        manager_name: document.getElementById('manager_name').value,
+        erection_year: document.getElementById('erection_year').value,
+        erection_month: document.getElementById('erection_month').value,
+        erection_period: document.getElementById('erection_period').value,
         order_status: '未着手',
-        toiai_status: '未着手',
+        cutting_status: '未着手',
         invoice_status: '未着手'
       };
       await fetch('/api/projects', {
