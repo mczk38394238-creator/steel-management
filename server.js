@@ -1,20 +1,17 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
-
-// 接続確認
-app.get('/', (req, res) => {
-  res.send('鋼材管理システム - サーバー起動中');
-});
 
 // 物件一覧取得
 app.get('/api/projects', async (req, res) => {
@@ -38,5 +35,5 @@ app.post('/api/projects', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`サーバー起動: ポート${PORT}`);
+  console.log(`サーバー起動：ポート${PORT}`);
 });
