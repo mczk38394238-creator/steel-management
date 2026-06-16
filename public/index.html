@@ -66,8 +66,7 @@ tr:hover { background: #f0f4f8; }
   <div class="table-wrap">
   <table>
     <thead><tr>
-      <th>No</th><th>物件コード</th><th>工事名</th><th>ゼネコン</th><th>担当者</th>
-      <th>建て方予定</th><th>発注</th><th>取合</th><th>請求</th><th>操作</th>
+      <th>No</th><th>物件コード</th><th>物件名</th><th>得意先名</th><th>登録日</th><th>操作</th>
     </tr></thead>
     <tbody id="projectBody"></tbody>
   </table>
@@ -105,22 +104,9 @@ tr:hover { background: #f0f4f8; }
 <div class="modal-box">
   <h3 id="addModalTitle">新規物件登録</h3>
   <input type="hidden" id="editId">
-  <div class="form-row">
-    <div class="form-group"><label>物件コード</label><input id="f_code" type="text"></div>
-    <div class="form-group"><label>担当者</label><input id="f_manager" type="text"></div>
-  </div>
-  <div class="form-group"><label>工事名</label><input id="f_name" type="text"></div>
-  <div class="form-row">
-    <div class="form-group"><label>ゼネコン</label><input id="f_gc" type="text"></div>
-    <div class="form-group"><label>設計監理</label><input id="f_designer" type="text"></div>
-  </div>
-  <div class="form-row">
-    <div class="form-group"><label>建て方予定年</label><input id="f_year" type="text" placeholder="2026"></div>
-    <div class="form-group"><label>月</label><input id="f_month" type="text" placeholder="3"></div>
-    <div class="form-group"><label>時期</label>
-      <select id="f_period"><option value="">--</option><option>上旬</option><option>中旬</option><option>下旬</option></select>
-    </div>
-  </div>
+  <div class="form-group"><label>物件コード</label><input id="f_code" type="text" placeholder="例：2024-001"></div>
+  <div class="form-group"><label>物件名</label><input id="f_name" type="text"></div>
+  <div class="form-group"><label>得意先名</label><input id="f_client" type="text"></div>
   <div class="modal-footer">
     <button class="btn btn-secondary" onclick="closeModal('addModal')">キャンセル</button>
     <button class="btn btn-primary" onclick="saveProject()">保存</button>
@@ -198,8 +184,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function openAddModal() {
   document.getElementById('addModalTitle').textContent = '新規物件登録';
   document.getElementById('editId').value = '';
-  ['f_code','f_name','f_gc','f_designer','f_manager','f_year','f_month'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f_period').value = '';
+  ['f_code','f_name','f_client'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('addModal').classList.add('open');
 }
 
@@ -208,12 +193,7 @@ function openEditModal(p) {
   document.getElementById('editId').value = p.id;
   document.getElementById('f_code').value = p.project_code || '';
   document.getElementById('f_name').value = p.project_name || '';
-  document.getElementById('f_gc').value = p.general_contractor || '';
-  document.getElementById('f_designer').value = p.designer || '';
-  document.getElementById('f_manager').value = p.manager_name || '';
-  document.getElementById('f_year').value = p.erection_year || '';
-  document.getElementById('f_month').value = p.erection_month || '';
-  document.getElementById('f_period').value = p.erection_period || '';
+  document.getElementById('f_client').value = p.client_name || '';
   document.getElementById('addModal').classList.add('open');
 }
 
@@ -222,13 +202,10 @@ async function saveProject() {
   const body = {
     project_code: document.getElementById('f_code').value,
     project_name: document.getElementById('f_name').value,
-    general_contractor: document.getElementById('f_gc').value,
-    designer: document.getElementById('f_designer').value,
-    manager_name: document.getElementById('f_manager').value,
-    erection_year: document.getElementById('f_year').value,
-    erection_month: document.getElementById('f_month').value,
-    erection_period: document.getElementById('f_period').value
+    client_name: document.getElementById('f_client').value
   };
+  if (!body.project_name) { alert('物件名を入力してください'); return; }
+  if (!id) body.status = 'active';
   const url = id ? '/api/projects/' + id : '/api/projects';
   const method = id ? 'PUT' : 'POST';
   const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
@@ -236,36 +213,14 @@ async function saveProject() {
   else alert('保存失敗');
 }
 
-async function deleteProject(id, name) {
-  if (!confirm(name + ' を削除しますか？')) return;
-  const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
-  if (res.ok) loadProjects();
-  else alert('削除失敗');
-}
-
-function openStatusModal(id, field, current) {
-  document.getElementById('statusProjectId').value = id;
-  document.getElementById('statusField').value = field;
-  const options = {
-    order_status: ['未着手','先行発注中','先行手配完了'],
-    cutting_status: ['未着手','取合中','取合完了'],
-    invoice_status: ['未着手','請求書チェック中','請求書チェック完了']
-  };
-  const sel = document.getElementById('statusValue');
-  sel.innerHTML = options[field].map(o => `<option${o===current?' selected':''}>${o}</option>`).join('');
-  document.getElementById('statusModal').classList.add('open');
-}
-
-async function saveStatus() {
-  const id = document.getElementById('statusProjectId').value;
-  const field = document.getElementById('statusField').value;
-  const value = document.getElementById('statusValue').value;
+async function archiveProject(id, name) {
+  if (!confirm('「' + name + '」を完了にしますか？\n完了にすると一覧から非表示になります。')) return;
   const res = await fetch('/api/projects/' + id, {
     method: 'PUT',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ [field]: value })
+    body: JSON.stringify({ status: 'archived' })
   });
-  if (res.ok) { closeModal('statusModal'); loadProjects(); }
+  if (res.ok) loadProjects();
   else alert('更新失敗');
 }
 
@@ -273,25 +228,21 @@ async function loadProjects() {
   const res = await fetch('/api/projects');
   const data = await res.json();
   const tbody = document.getElementById('projectBody');
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;">物件データがありません</td></tr>';
+  if (!Array.isArray(data) || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">物件データがありません</td></tr>';
     return;
   }
   tbody.innerHTML = data.map((p, i) => {
-    const erection = [p.erection_year ? p.erection_year+'年' : '', p.erection_month ? p.erection_month+'月' : '', p.erection_period || ''].filter(Boolean).join('');
+    const createdAt = p.created_at ? p.created_at.slice(0,10) : '';
     return `<tr>
       <td>${i+1}</td>
       <td>${p.project_code || ''}</td>
-      <td>${p.project_name}</td>
-      <td>${p.general_contractor || ''}</td>
-      <td>${p.manager_name || ''}</td>
-      <td>${erection}</td>
-      <td><span class="status status-${p.order_status||'未着手'}" onclick="openStatusModal(${p.id},'order_status','${p.order_status||'未着手'}')">${p.order_status||'未着手'}</span></td>
-      <td><span class="status status-${p.cutting_status||'未着手'}" onclick="openStatusModal(${p.id},'cutting_status','${p.cutting_status||'未着手'}')">${p.cutting_status||'未着手'}</span></td>
-      <td><span class="status status-${p.invoice_status||'未着手'}" onclick="openStatusModal(${p.id},'invoice_status','${p.invoice_status||'未着手'}')">${p.invoice_status||'未着手'}</span></td>
+      <td>${p.project_name || ''}</td>
+      <td>${p.client_name || ''}</td>
+      <td>${createdAt}</td>
       <td>
         <button class="btn btn-secondary" onclick='openEditModal(${JSON.stringify(p)})'>編集</button>
-        <button class="btn btn-danger" onclick="deleteProject(${p.id},'${p.project_name}')">削除</button>
+        <button class="btn btn-success" onclick="archiveProject(${p.id},'${(p.project_name||'').replace(/'/g,'\\'+'\\'')}')">完了</button>
       </td>
     </tr>`;
   }).join('');
