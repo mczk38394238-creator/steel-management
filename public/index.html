@@ -7,146 +7,205 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
-header { background: #1a3a5c; color: white; padding: 15px 30px; font-size: 20px; font-weight: bold; }
-.container { padding: 30px; }
-h2 { font-size: 20px; margin-bottom: 15px; }
+.header { background: #1a3a5c; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; }
+.nav { background: #2c5f8a; display: flex; gap: 4px; padding: 8px 20px; }
+.nav button { background: transparent; color: #aac; border: 1px solid #4a8; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+.nav button.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
+.content { padding: 20px; }
+.page { display: none; }
+.page.active { display: block; }
+h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
 .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
 .btn-primary { background: #1a3a5c; color: white; }
-.btn-success { background: #28a745; color: white; }
-.btn-danger { background: #dc3545; color: white; }
-.btn-secondary { background: #6c757d; color: white; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-thead { background: #1a3a5c; color: white; }
-th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
-tr:hover { background: #f8f9fa; }
-.status { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer; }
-.status-未着手 { background: #e8f5e9; color: #2e7d32; }
-.status-先行発注中 { background: #fff3e0; color: #e65100; }
-.status-先行手配完了 { background: #e3f2fd; color: #1565c0; }
-.status-取合中 { background: #fff3e0; color: #e65100; }
-.status-取合完了 { background: #e3f2fd; color: #1565c0; }
-.status-請求書チェック中 { background: #fff3e0; color: #e65100; }
-.status-請求書チェック完了 { background: #e3f2fd; color: #1565c0; }
-.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; }
-.modal.active { display:flex; align-items:center; justify-content:center; }
-.modal-box { background:white; padding:30px; border-radius:8px; width:500px; max-height:90vh; overflow-y:auto; }
-.modal-box h3 { margin-bottom:20px; font-size:18px; }
-.form-group { margin-bottom:15px; }
-.form-group label { display:block; font-size:13px; font-weight:bold; margin-bottom:5px; color:#555; }
-.form-group input, .form-group select { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; }
-.form-row { display:flex; gap:10px; }
-.form-row .form-group { flex:1; }
-.modal-footer { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+.btn-secondary { background: #6c757d; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-danger { background: #dc3545; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-success { background: #28a745; color: white; font-size: 12px; padding: 4px 10px; }
+table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; }
+th { background: #1a3a5c; color: white; padding: 8px 6px; text-align: left; white-space: nowrap; }
+td { padding: 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+tr:hover { background: #f0f4f8; }
+.status { padding: 3px 8px; border-radius: 12px; font-size: 12px; cursor: pointer; }
+.status-未着手 { color: #28a745; border: 1px solid #28a745; }
+.status-先行発注中 { color: #fd7e14; border: 1px solid #fd7e14; }
+.status-先行手配完了 { color: #007bff; border: 1px solid #007bff; }
+.status-取合中 { color: #fd7e14; border: 1px solid #fd7e14; }
+.status-取合完了 { color: #007bff; border: 1px solid #007bff; }
+.status-請求書チェック中 { color: #fd7e14; border: 1px solid #fd7e14; }
+.status-請求書チェック完了 { color: #007bff; border: 1px solid #007bff; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+.modal.open { display: flex; align-items: center; justify-content: center; }
+.modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 400px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+.modal-box h3 { margin-bottom: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; }
+.form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.note { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+.project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+.project-selector label { font-weight: bold; color: #333; }
+.project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 300px; }
+.table-wrap { overflow-x: auto; }
+.arrived { color: #28a745; font-weight: bold; }
+.pending { color: #dc3545; font-weight: bold; }
 </style>
 </head>
 <body>
-<header>望月鉄工所 鋼材管理システム</header>
-<div class="container">
-<h2>物件マスター</h2>
-<button class="btn btn-primary" style="margin-bottom:15px" onclick="openAddModal()">＋ 新規物件登録</button>
-<table>
-<thead>
-<tr>
-<th>No</th><th>物件コード</th><th>工事名</th><th>ゼネコン</th><th>担当者</th><th>建て方予定</th><th>発注</th><th>取合</th><th>請求</th><th>操作</th>
-</tr>
-</thead>
-<tbody id="projectBody"></tbody>
-</table>
+<div class="header">望月鉄工所 鋼材管理システム</div>
+<div class="nav">
+  <button class="active" onclick="showPage('master')">物件マスター</button>
+  <button onclick="showPage('zaizai')">資材部管理</button>
+</div>
+<div class="content">
+
+<!-- 物件マスター -->
+<div id="page-master" class="page active">
+  <h2>物件マスター</h2>
+  <button class="btn btn-primary" onclick="openAddModal()" style="margin-bottom:12px">＋ 新規物件登録</button>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>No</th><th>物件コード</th><th>工事名</th><th>ゼネコン</th><th>担当者</th>
+      <th>建て方予定</th><th>発注</th><th>取合</th><th>請求</th><th>操作</th>
+    </tr></thead>
+    <tbody id="projectBody"></tbody>
+  </table>
+  </div>
 </div>
 
-<!-- 新規登録・編集モーダル -->
-<div class="modal" id="modal">
+<!-- 資材部管理 -->
+<div id="page-zaizai" class="page">
+  <h2>資材部管理画面</h2>
+  <div class="note">※ 規格部「-T」は高規格材とする（弊社独自規定）</div>
+  <div class="project-selector">
+    <label>物件選択：</label>
+    <select id="projectSelect" onchange="loadOrderItems()">
+      <option value="">-- 物件を選択してください --</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddItemModal()" id="addItemBtn" style="display:none">＋ 明細追加</button>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
+      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
+      <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
+      <th>備考</th><th>操作</th>
+    </tr></thead>
+    <tbody id="orderBody"></tbody>
+  </table>
+  </div>
+</div>
+
+</div>
+
+<!-- 物件登録モーダル -->
+<div id="addModal" class="modal">
 <div class="modal-box">
-<h3 id="modalTitle">新規物件登録</h3>
-<div class="form-group">
-<label>物件コード</label>
-<input type="text" id="f_code" placeholder="例：2601-水戸ロジ">
-</div>
-<div class="form-group">
-<label>工事名</label>
-<input type="text" id="f_name" placeholder="例：水戸ロジセンター新築工事">
-</div>
-<div class="form-group">
-<label>ゼネコン</label>
-<input type="text" id="f_gc" placeholder="例：安藤・間">
-</div>
-<div class="form-group">
-<label>設計監理</label>
-<input type="text" id="f_designer" placeholder="例：〇〇設計事務所">
-</div>
-<div class="form-group">
-<label>ロール手配担当者</label>
-<input type="text" id="f_manager" placeholder="例：後藤">
-</div>
-<div class="form-row">
-<div class="form-group">
-<label>建て方予定年</label>
-<input type="text" id="f_year" placeholder="例：2026">
-</div>
-<div class="form-group">
-<label>月</label>
-<input type="text" id="f_month" placeholder="例：12" min="1" max="12">
-</div>
-<div class="form-group">
-<label>時期</label>
-<select id="f_period">
-<option value="">-</option>
-<option value="上旬">上旬</option>
-<option value="中旬">中旬</option>
-<option value="下旬">下旬</option>
-</select>
-</div>
-</div>
-<div class="modal-footer">
-<button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
-<button class="btn btn-success" onclick="saveProject()">保存</button>
-</div>
+  <h3 id="addModalTitle">新規物件登録</h3>
+  <input type="hidden" id="editId">
+  <div class="form-row">
+    <div class="form-group"><label>物件コード</label><input id="f_code" type="text"></div>
+    <div class="form-group"><label>担当者</label><input id="f_manager" type="text"></div>
+  </div>
+  <div class="form-group"><label>工事名</label><input id="f_name" type="text"></div>
+  <div class="form-row">
+    <div class="form-group"><label>ゼネコン</label><input id="f_gc" type="text"></div>
+    <div class="form-group"><label>設計監理</label><input id="f_designer" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>建て方予定年</label><input id="f_year" type="text" placeholder="2026"></div>
+    <div class="form-group"><label>月</label><input id="f_month" type="text" placeholder="3"></div>
+    <div class="form-group"><label>時期</label>
+      <select id="f_period"><option value="">--</option><option>上旬</option><option>中旬</option><option>下旬</option></select>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('addModal')">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveProject()">保存</button>
+  </div>
 </div>
 </div>
 
 <!-- ステータス変更モーダル -->
-<div class="modal" id="statusModal">
-<div class="modal-box" style="width:350px">
-<h3 id="statusModalTitle">ステータス変更</h3>
-<div class="form-group">
-<label id="statusLabel">ステータス</label>
-<select id="statusSelect"></select>
+<div id="statusModal" class="modal">
+<div class="modal-box" style="min-width:300px">
+  <h3>ステータス変更</h3>
+  <input type="hidden" id="statusProjectId">
+  <input type="hidden" id="statusField">
+  <div class="form-group">
+    <label>ステータス</label>
+    <select id="statusValue"></select>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('statusModal')">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveStatus()">変更</button>
+  </div>
 </div>
-<div class="modal-footer">
-<button class="btn btn-secondary" onclick="closeStatusModal()">キャンセル</button>
-<button class="btn btn-success" onclick="saveStatus()">変更</button>
 </div>
+
+<!-- 明細追加モーダル -->
+<div id="addItemModal" class="modal">
+<div class="modal-box">
+  <h3 id="itemModalTitle">明細追加</h3>
+  <input type="hidden" id="editItemId">
+  <div class="form-row">
+    <div class="form-group"><label>通しNo</label><input id="i_seq" type="text"></div>
+    <div class="form-group"><label>商社</label><input id="i_trading" type="text"></div>
+    <div class="form-group"><label>メーカー</label><input id="i_maker" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>暫定納期</label><input id="i_delivery" type="date"></div>
+    <div class="form-group"><label>工区部位</label><input id="i_section" type="text"></div>
+    <div class="form-group"><label>契約No</label><input id="i_contract" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>鋼種</label><input id="i_steel" type="text"></div>
+    <div class="form-group"><label>サイズ</label><input id="i_size" type="text"></div>
+    <div class="form-group"><label>規格</label><input id="i_standard" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>長さ(mm)</label><input id="i_length" type="text"></div>
+    <div class="form-group"><label>員数</label><input id="i_qty" type="text"></div>
+    <div class="form-group"><label>重量(kg)</label><input id="i_weight" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>向け先</label><input id="i_dest" type="text"></div>
+    <div class="form-group"><label>入荷本数</label><input id="i_arrived" type="text" value="0"></div>
+    <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
+  </div>
+  <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('addItemModal')">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveItem()">保存</button>
+  </div>
 </div>
 </div>
 
 <script>
-let editingId = null;
-let statusEditingId = null;
-let statusEditingField = null;
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.target.classList.add('active');
+  if (page === 'zaizai') loadProjectSelector();
+}
 
-const statusOptions = {
-  order_status: ['未着手','先行発注中','先行手配完了'],
-  cutting_status: ['未着手','取合中','取合完了'],
-  invoice_status: ['未着手','請求書チェック中','請求書チェック完了']
-};
-const statusLabels = {
-  order_status: '発注ステータス',
-  cutting_status: '取合ステータス',
-  invoice_status: '請求ステータス'
-};
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+// ===== 物件マスター =====
 function openAddModal() {
-  editingId = null;
-  document.getElementById('modalTitle').textContent = '新規物件登録';
+  document.getElementById('addModalTitle').textContent = '新規物件登録';
+  document.getElementById('editId').value = '';
   ['f_code','f_name','f_gc','f_designer','f_manager','f_year','f_month'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f_period').value = '';
-  document.getElementById('modal').classList.add('active');
+  document.getElementById('addModal').classList.add('open');
 }
 
 function openEditModal(p) {
-  editingId = p.id;
-  document.getElementById('modalTitle').textContent = '物件編集';
+  document.getElementById('addModalTitle').textContent = '物件編集';
+  document.getElementById('editId').value = p.id;
   document.getElementById('f_code').value = p.project_code || '';
   document.getElementById('f_name').value = p.project_name || '';
   document.getElementById('f_gc').value = p.general_contractor || '';
@@ -155,73 +214,59 @@ function openEditModal(p) {
   document.getElementById('f_year').value = p.erection_year || '';
   document.getElementById('f_month').value = p.erection_month || '';
   document.getElementById('f_period').value = p.erection_period || '';
-  document.getElementById('modal').classList.add('active');
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.remove('active');
-}
-
-function openStatusModal(id, field, currentValue) {
-  statusEditingId = id;
-  statusEditingField = field;
-  document.getElementById('statusModalTitle').textContent = statusLabels[field] + ' 変更';
-  document.getElementById('statusLabel').textContent = statusLabels[field];
-  const sel = document.getElementById('statusSelect');
-  sel.innerHTML = statusOptions[field].map(opt =>
-    `<option value="${opt}" ${opt === currentValue ? 'selected' : ''}>${opt}</option>`
-  ).join('');
-  document.getElementById('statusModal').classList.add('active');
-}
-
-function closeStatusModal() {
-  document.getElementById('statusModal').classList.remove('active');
-}
-
-async function saveStatus() {
-  const value = document.getElementById('statusSelect').value;
-  const body = {};
-  body[statusEditingField] = value;
-  const res = await fetch('/api/projects/' + statusEditingId, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (res.ok) { closeStatusModal(); loadProjects(); }
-  else { const err = await res.json(); alert('エラー：' + err.error); }
+  document.getElementById('addModal').classList.add('open');
 }
 
 async function saveProject() {
+  const id = document.getElementById('editId').value;
   const body = {
-    project_code: document.getElementById('f_code').value.trim(),
-    project_name: document.getElementById('f_name').value.trim(),
-    general_contractor: document.getElementById('f_gc').value.trim(),
-    designer: document.getElementById('f_designer').value.trim(),
-    manager_name: document.getElementById('f_manager').value.trim(),
-    erection_year: document.getElementById('f_year').value || null,
-    erection_month: document.getElementById('f_month').value || null,
-    erection_period: document.getElementById('f_period').value || null,
-    order_status: '未着手',
-    cutting_status: '未着手',
-    invoice_status: '未着手'
+    project_code: document.getElementById('f_code').value,
+    project_name: document.getElementById('f_name').value,
+    general_contractor: document.getElementById('f_gc').value,
+    designer: document.getElementById('f_designer').value,
+    manager_name: document.getElementById('f_manager').value,
+    erection_year: document.getElementById('f_year').value,
+    erection_month: document.getElementById('f_month').value,
+    erection_period: document.getElementById('f_period').value
   };
-  if (editingId) {
-    delete body.order_status; delete body.cutting_status; delete body.invoice_status;
-  }
-  const res = await fetch('/api/projects' + (editingId ? '/' + editingId : ''), {
-    method: editingId ? 'PUT' : 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (res.ok) { closeModal(); loadProjects(); }
-  else { const err = await res.json(); alert('登録失敗：' + (err.error || '不明なエラー')); }
+  const url = id ? '/api/projects/' + id : '/api/projects';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (res.ok) { closeModal('addModal'); loadProjects(); }
+  else alert('保存失敗');
 }
 
 async function deleteProject(id, name) {
-  if (!confirm('「' + name + '」を削除しますか？')) return;
+  if (!confirm(name + ' を削除しますか？')) return;
   const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
   if (res.ok) loadProjects();
   else alert('削除失敗');
+}
+
+function openStatusModal(id, field, current) {
+  document.getElementById('statusProjectId').value = id;
+  document.getElementById('statusField').value = field;
+  const options = {
+    order_status: ['未着手','先行発注中','先行手配完了'],
+    cutting_status: ['未着手','取合中','取合完了'],
+    invoice_status: ['未着手','請求書チェック中','請求書チェック完了']
+  };
+  const sel = document.getElementById('statusValue');
+  sel.innerHTML = options[field].map(o => `<option${o===current?' selected':''}>${o}</option>`).join('');
+  document.getElementById('statusModal').classList.add('open');
+}
+
+async function saveStatus() {
+  const id = document.getElementById('statusProjectId').value;
+  const field = document.getElementById('statusField').value;
+  const value = document.getElementById('statusValue').value;
+  const res = await fetch('/api/projects/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ [field]: value })
+  });
+  if (res.ok) { closeModal('statusModal'); loadProjects(); }
+  else alert('更新失敗');
 }
 
 async function loadProjects() {
@@ -241,15 +286,138 @@ async function loadProjects() {
       <td>${p.general_contractor || ''}</td>
       <td>${p.manager_name || ''}</td>
       <td>${erection}</td>
-      <td><span class="status status-${p.order_status || '未着手'}" onclick="openStatusModal(${p.id},'order_status','${p.order_status || '未着手'}')">${p.order_status || '未着手'}</span></td>
-      <td><span class="status status-${p.cutting_status || '未着手'}" onclick="openStatusModal(${p.id},'cutting_status','${p.cutting_status || '未着手'}')">${p.cutting_status || '未着手'}</span></td>
-      <td><span class="status status-${p.invoice_status || '未着手'}" onclick="openStatusModal(${p.id},'invoice_status','${p.invoice_status || '未着手'}')">${p.invoice_status || '未着手'}</span></td>
+      <td><span class="status status-${p.order_status||'未着手'}" onclick="openStatusModal(${p.id},'order_status','${p.order_status||'未着手'}')">${p.order_status||'未着手'}</span></td>
+      <td><span class="status status-${p.cutting_status||'未着手'}" onclick="openStatusModal(${p.id},'cutting_status','${p.cutting_status||'未着手'}')">${p.cutting_status||'未着手'}</span></td>
+      <td><span class="status status-${p.invoice_status||'未着手'}" onclick="openStatusModal(${p.id},'invoice_status','${p.invoice_status||'未着手'}')">${p.invoice_status||'未着手'}</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" onclick='openEditModal(${JSON.stringify(p)})'>編集</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteProject(${p.id},'${p.project_name}')">削除</button>
+        <button class="btn btn-secondary" onclick='openEditModal(${JSON.stringify(p)})'>編集</button>
+        <button class="btn btn-danger" onclick="deleteProject(${p.id},'${p.project_name}')">削除</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// ===== 資材部管理 =====
+let currentProjectId = null;
+
+async function loadProjectSelector() {
+  const res = await fetch('/api/projects');
+  const data = await res.json();
+  const sel = document.getElementById('projectSelect');
+  sel.innerHTML = '<option value="">-- 物件を選択してください --</option>' +
+    data.map(p => `<option value="${p.id}">${p.project_name}</option>`).join('');
+}
+
+async function loadOrderItems() {
+  const sel = document.getElementById('projectSelect');
+  currentProjectId = sel.value;
+  const addBtn = document.getElementById('addItemBtn');
+  if (!currentProjectId) {
+    document.getElementById('orderBody').innerHTML = '';
+    addBtn.style.display = 'none';
+    return;
+  }
+  addBtn.style.display = 'inline-block';
+  const res = await fetch('/api/order-details/' + currentProjectId);
+  const data = await res.json();
+  const tbody = document.getElementById('orderBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;">明細データがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(d => {
+    const arrived = d.arrived_qty || 0;
+    const pending = d.pending_qty || 0;
+    const delivery = d.tentative_delivery ? d.tentative_delivery.slice(0,10) : '';
+    return `<tr>
+      <td>${d.seq_no || ''}</td>
+      <td>${d.trading_company || ''}</td>
+      <td>${d.Maker || ''}</td>
+      <td>${delivery}</td>
+      <td>${d.セクション || ''}</td>
+      <td>${d.contract_no || ''}</td>
+      <td>${d.steel_type || ''}</td>
+      <td>${d.サイズ || ''}</td>
+      <td>${d.標準 || ''}</td>
+      <td>${d.length_mm || ''}</td>
+      <td>${d.員数 || ''}</td>
+      <td>${d.weight_kg || ''}</td>
+      <td>${d.宛先 || ''}</td>
+      <td class="arrived">${arrived}</td>
+      <td class="pending">${pending}</td>
+      <td>${d.注釈 || ''}</td>
+      <td>
+        <button class="btn btn-secondary" onclick='openEditItemModal(${JSON.stringify(d)})'>編集</button>
+        <button class="btn btn-danger" onclick="deleteItem(${d.id})">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddItemModal() {
+  document.getElementById('itemModalTitle').textContent = '明細追加';
+  document.getElementById('editItemId').value = '';
+  ['i_seq','i_trading','i_maker','i_delivery','i_section','i_contract','i_steel','i_size','i_standard','i_length','i_qty','i_weight','i_dest','i_note'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('i_arrived').value = '0';
+  document.getElementById('i_pending').value = '0';
+  document.getElementById('addItemModal').classList.add('open');
+}
+
+function openEditItemModal(d) {
+  document.getElementById('itemModalTitle').textContent = '明細編集';
+  document.getElementById('editItemId').value = d.id;
+  document.getElementById('i_seq').value = d.seq_no || '';
+  document.getElementById('i_trading').value = d.trading_company || '';
+  document.getElementById('i_maker').value = d.Maker || '';
+  document.getElementById('i_delivery').value = d.tentative_delivery ? d.tentative_delivery.slice(0,10) : '';
+  document.getElementById('i_section').value = d.セクション || '';
+  document.getElementById('i_contract').value = d.contract_no || '';
+  document.getElementById('i_steel').value = d.steel_type || '';
+  document.getElementById('i_size').value = d.サイズ || '';
+  document.getElementById('i_standard').value = d.標準 || '';
+  document.getElementById('i_length').value = d.length_mm || '';
+  document.getElementById('i_qty').value = d.員数 || '';
+  document.getElementById('i_weight').value = d.weight_kg || '';
+  document.getElementById('i_dest').value = d.宛先 || '';
+  document.getElementById('i_arrived').value = d.arrived_qty || 0;
+  document.getElementById('i_pending').value = d.pending_qty || 0;
+  document.getElementById('i_note').value = d.注釈 || '';
+  document.getElementById('addItemModal').classList.add('open');
+}
+
+async function saveItem() {
+  const id = document.getElementById('editItemId').value;
+  const body = {
+    project_id: currentProjectId,
+    seq_no: document.getElementById('i_seq').value,
+    trading_company: document.getElementById('i_trading').value,
+    Maker: document.getElementById('i_maker').value,
+    tentative_delivery: document.getElementById('i_delivery').value || null,
+    セクション: document.getElementById('i_section').value,
+    contract_no: document.getElementById('i_contract').value,
+    steel_type: document.getElementById('i_steel').value,
+    サイズ: document.getElementById('i_size').value,
+    標準: document.getElementById('i_standard').value,
+    length_mm: document.getElementById('i_length').value || null,
+    員数: document.getElementById('i_qty').value || null,
+    weight_kg: document.getElementById('i_weight').value || null,
+    宛先: document.getElementById('i_dest').value,
+    arrived_qty: document.getElementById('i_arrived').value || 0,
+    pending_qty: document.getElementById('i_pending').value || 0,
+    注釈: document.getElementById('i_note').value
+  };
+  const url = id ? '/api/order-details/' + id : '/api/order-details';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
+  else { const err = await res.json(); alert('保存失敗: ' + err.error); }
+}
+
+async function deleteItem(id) {
+  if (!confirm('この明細を削除しますか？')) return;
+  const res = await fetch('/api/order-details/' + id, { method: 'DELETE' });
+  if (res.ok) loadOrderItems();
+  else alert('削除失敗');
 }
 
 loadProjects();

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>望月鉄工所 鋼材管理システム</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
+header { background: #1a3a5c; color: white; padding: 15px 30px; font-size: 20px; font-weight: bold; }
+.container { padding: 30px; }
+h2 { font-size: 20px; margin-bottom: 15px; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.btn-primary { background: #1a3a5c; color: white; }
+.btn-success { background: #28a745; color: white; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+thead { background: #1a3a5c; color: white; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
+tr:hover { background: #f8f9fa; }
+.status { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer; }
+.status-未着手 { background: #e8f5e9; color: #2e7d32; }
+.status-先行発注中 { background: #fff3e0; color: #e65100; }
+.status-先行手配完了 { background: #e3f2fd; color: #1565c0; }
+.status-取合中 { background: #fff3e0; color: #e65100; }
+.status-取合完了 { background: #e3f2fd; color: #1565c0; }
+.status-請求書チェック中 { background: #fff3e0; color: #e65100; }
+.status-請求書チェック完了 { background: #e3f2fd; color: #1565c0; }
+.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; }
+.modal.active { display:flex; align-items:center; justify-content:center; }
+.modal-box { background:white; padding:30px; border-radius:8px; width:500px; max-height:90vh; overflow-y:auto; }
+.modal-box h3 { margin-bottom:20px; font-size:18px; }
+.form-group { margin-bottom:15px; }
+.form-group label { display:block; font-size:13px; font-weight:bold; margin-bottom:5px; color:#555; }
+.form-group input, .form-group select { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; font-size:14px; }
+.form-row { display:flex; gap:10px; }
+.form-row .form-group { flex:1; }
+.modal-footer { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+</style>
+</head>
+<body>
+<header>望月鉄工所 鋼材管理システム</header>
+<div class="container">
+<h2>物件マスター</h2>
+<button class="btn btn-primary" style="margin-bottom:15px" onclick="openAddModal()">＋ 新規物件登録</button>
+<table>
+<thead>
+<tr>
+<th>No</th><th>物件コード</th><th>工事名</th><th>ゼネコン</th><th>担当者</th><th>建て方予定</th><th>発注</th><th>取合</th><th>請求</th><th>操作</th>
+</tr>
+</thead>
+<tbody id="projectBody"></tbody>
+</table>
+</div>
+
+<!-- 新規登録・編集モーダル -->
+<div class="modal" id="modal">
+<div class="modal-box">
+<h3 id="modalTitle">新規物件登録</h3>
+<div class="form-group">
+<label>物件コード</label>
+<input type="text" id="f_code" placeholder="例：2601-水戸ロジ">
+</div>
+<div class="form-group">
+<label>工事名</label>
+<input type="text" id="f_name" placeholder="例：水戸ロジセンター新築工事">
+</div>
+<div class="form-group">
+<label>ゼネコン</label>
+<input type="text" id="f_gc" placeholder="例：安藤・間">
+</div>
+<div class="form-group">
+<label>設計監理</label>
+<input type="text" id="f_designer" placeholder="例：〇〇設計事務所">
+</div>
+<div class="form-group">
+<label>ロール手配担当者</label>
+<input type="text" id="f_manager" placeholder="例：後藤">
+</div>
+<div class="form-row">
+<div class="form-group">
+<label>建て方予定年</label>
+<input type="text" id="f_year" placeholder="例：2026">
+</div>
+<div class="form-group">
+<label>月</label>
+<input type="text" id="f_month" placeholder="例：12" min="1" max="12">
+</div>
+<div class="form-group">
+<label>時期</label>
+<select id="f_period">
+<option value="">-</option>
+<option value="上旬">上旬</option>
+<option value="中旬">中旬</option>
+<option value="下旬">下旬</option>
+</select>
+</div>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+<button class="btn btn-success" onclick="saveProject()">保存</button>
+</div>
+</div>
+</div>
+
+<!-- ステータス変更モーダル -->
+<div class="modal" id="statusModal">
+<div class="modal-box" style="width:350px">
+<h3 id="statusModalTitle">ステータス変更</h3>
+<div class="form-group">
+<label id="statusLabel">ステータス</label>
+<select id="statusSelect"></select>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" onclick="closeStatusModal()">キャンセル</button>
+<button class="btn btn-success" onclick="saveStatus()">変更</button>
+</div>
+</div>
+</div>
+
+<script>
+let editingId = null;
+let statusEditingId = null;
+let statusEditingField = null;
+
+const statusOptions = {
+  order_status: ['未着手','先行発注中','先行手配完了'],
+  cutting_status: ['未着手','取合中','取合完了'],
+  invoice_status: ['未着手','請求書チェック中','請求書チェック完了']
+};
+const statusLabels = {
+  order_status: '発注ステータス',
+  cutting_status: '取合ステータス',
+  invoice_status: '請求ステータス'
+};
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '新規物件登録';
+  ['f_code','f_name','f_gc','f_designer','f_manager','f_year','f_month'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_period').value = '';
+  document.getElementById('modal').classList.add('active');
+}
+
+function openEditModal(p) {
+  editingId = p.id;
+  document.getElementById('modalTitle').textContent = '物件編集';
+  document.getElementById('f_code').value = p.project_code || '';
+  document.getElementById('f_name').value = p.project_name || '';
+  document.getElementById('f_gc').value = p.general_contractor || '';
+  document.getElementById('f_designer').value = p.designer || '';
+  document.getElementById('f_manager').value = p.manager_name || '';
+  document.getElementById('f_year').value = p.erection_year || '';
+  document.getElementById('f_month').value = p.erection_month || '';
+  document.getElementById('f_period').value = p.erection_period || '';
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+function openStatusModal(id, field, currentValue) {
+  statusEditingId = id;
+  statusEditingField = field;
+  document.getElementById('statusModalTitle').textContent = statusLabels[field] + ' 変更';
+  document.getElementById('statusLabel').textContent = statusLabels[field];
+  const sel = document.getElementById('statusSelect');
+  sel.innerHTML = statusOptions[field].map(opt =>
+    `<option value="${opt}" ${opt === currentValue ? 'selected' : ''}>${opt}</option>`
+  ).join('');
+  document.getElementById('statusModal').classList.add('active');
+}
+
+function closeStatusModal() {
+  document.getElementById('statusModal').classList.remove('active');
+}
+
+async function saveStatus() {
+  const value = document.getElementById('statusSelect').value;
+  const body = {};
+  body[statusEditingField] = value;
+  const res = await fetch('/api/projects/' + statusEditingId, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (res.ok) { closeStatusModal(); loadProjects(); }
+  else { const err = await res.json(); alert('エラー：' + err.error); }
+}
+
+async function saveProject() {
+  const body = {
+    project_code: document.getElementById('f_code').value.trim(),
+    project_name: document.getElementById('f_name').value.trim(),
+    general_contractor: document.getElementById('f_gc').value.trim(),
+    designer: document.getElementById('f_designer').value.trim(),
+    manager_name: document.getElementById('f_manager').value.trim(),
+    erection_year: document.getElementById('f_year').value || null,
+    erection_month: document.getElementById('f_month').value || null,
+    erection_period: document.getElementById('f_period').value || null,
+    order_status: '未着手',
+    cutting_status: '未着手',
+    invoice_status: '未着手'
+  };
+  if (editingId) {
+    delete body.order_status; delete body.cutting_status; delete body.invoice_status;
+  }
+  const res = await fetch('/api/projects' + (editingId ? '/' + editingId : ''), {
+    method: editingId ? 'PUT' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (res.ok) { closeModal(); loadProjects(); }
+  else { const err = await res.json(); alert('登録失敗：' + (err.error || '不明なエラー')); }
+}
+
+async function deleteProject(id, name) {
+  if (!confirm('「' + name + '」を削除しますか？')) return;
+  const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
+  if (res.ok) loadProjects();
+  else alert('削除失敗');
+}
+
+async function loadProjects() {
+  const res = await fetch('/api/projects');
+  const data = await res.json();
+  const tbody = document.getElementById('projectBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;">物件データがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map((p, i) => {
+    const erection = [p.erection_year ? p.erection_year+'年' : '', p.erection_month ? p.erection_month+'月' : '', p.erection_period || ''].filter(Boolean).join('');
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${p.project_code || ''}</td>
+      <td>${p.project_name}</td>
+      <td>${p.general_contractor || ''}</td>
+      <td>${p.manager_name || ''}</td>
+      <td>${erection}</td>
+      <td><span class="status status-${p.order_status || '未着手'}" onclick="openStatusModal(${p.id},'order_status','${p.order_status || '未着手'}')">${p.order_status || '未着手'}</span></td>
+      <td><span class="status status-${p.cutting_status || '未着手'}" onclick="openStatusModal(${p.id},'cutting_status','${p.cutting_status || '未着手'}')">${p.cutting_status || '未着手'}</span></td>
+      <td><span class="status status-${p.invoice_status || '未着手'}" onclick="openStatusModal(${p.id},'invoice_status','${p.invoice_status || '未着手'}')">${p.invoice_status || '未着手'}</span></td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick='openEditModal(${JSON.stringify(p)})'>編集</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProject(${p.id},'${p.project_name}')">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+loadProjects();
+</script>
+</body>
+</html>
