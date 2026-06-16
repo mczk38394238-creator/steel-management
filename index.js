@@ -45,6 +45,24 @@ app.get('/api/order-items/:projectId', async (req, res) => {
   res.json(data);
 });
 
+app.post('/api/order-items', async (req, res) => {
+  const { data, error } = await supabase.from('order_items').insert([req.body]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.put('/api/order-items/:id', async (req, res) => {
+  const { data, error } = await supabase.from('order_items').update(req.body).eq('id', req.params.id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.delete('/api/order-items/:id', async (req, res) => {
+  const { error } = await supabase.from('order_items').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
 app.post('/api/order-items/bulk', async (req, res) => {
   const { project_id, items, mode } = req.body;
   if (mode === 'replace') {
@@ -55,12 +73,6 @@ app.post('/api/order-items/bulk', async (req, res) => {
   const { data, error } = await supabase.from('order_items').insert(rows).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true, count: data.length });
-});
-
-app.delete('/api/order-items/project/:projectId', async (req, res) => {
-  const { error } = await supabase.from('order_items').delete().eq('project_id', req.params.projectId);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true });
 });
 
 app.get('/', (req, res) => {

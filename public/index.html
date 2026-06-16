@@ -24,51 +24,46 @@ table { width: 100%; border-collapse: collapse; background: white; font-size: 13
 th { background: #1a3a5c; color: white; padding: 8px 6px; text-align: left; white-space: nowrap; }
 td { padding: 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
 tr:hover { background: #f0f4f8; }
-.status { padding: 3px 8px; border-radius: 12px; font-size: 12px; cursor: pointer; }
-.status-未着手 { color: #28a745; border: 1px solid #28a745; }
-.status-先行発注中 { color: #fd7e14; border: 1px solid #fd7e14; }
-.status-先行手配完了 { color: #007bff; border: 1px solid #007bff; }
-.status-取合中 { color: #fd7e14; border: 1px solid #fd7e14; }
-.status-取合完了 { color: #007bff; border: 1px solid #007bff; }
-.status-請求書チェック中 { color: #fd7e14; border: 1px solid #fd7e14; }
-.status-請求書チェック完了 { color: #007bff; border: 1px solid #007bff; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
 .modal.open { display: flex; align-items: center; justify-content: center; }
-.modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 400px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
-.modal-box h3 { margin-bottom: 16px; }
+.modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 360px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+.modal-box h3 { margin-bottom: 16px; font-size: 16px; }
 .form-group { margin-bottom: 12px; }
-.form-group label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; }
-.form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+.form-group label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; font-weight: bold; }
+.form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
 .form-row { display: flex; gap: 12px; }
 .form-row .form-group { flex: 1; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 .note { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
-.project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+.project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .project-selector label { font-weight: bold; color: #333; }
-.project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 300px; }
+.project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
 .table-wrap { overflow-x: auto; }
 .arrived { color: #28a745; font-weight: bold; }
 .pending { color: #dc3545; font-weight: bold; }
+.msg-error { color: #dc3545; font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
 <div class="header">望月鉄工所 鋼材管理システム</div>
 <div class="nav">
-  <button class="active" onclick="showPage('master')">物件マスター</button>
-  <button onclick="showPage('zaizai')">資材部管理</button>
+  <button class="active" onclick="showPage('master', this)">物件マスター</button>
+  <button onclick="showPage('zaizai', this)">資材部管理</button>
 </div>
 <div class="content">
 
 <!-- 物件マスター -->
 <div id="page-master" class="page active">
   <h2>物件マスター</h2>
-  <button class="btn btn-primary" onclick="openAddModal()" style="margin-bottom:12px">＋ 新規物件登録</button>
+  <button class="btn btn-primary" id="btnNewProject" style="margin-bottom:12px">＋ 新規物件登録</button>
   <div class="table-wrap">
   <table>
     <thead><tr>
       <th>No</th><th>物件コード</th><th>物件名</th><th>得意先名</th><th>登録日</th><th>操作</th>
     </tr></thead>
-    <tbody id="projectBody"></tbody>
+    <tbody id="projectBody">
+      <tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+    </tbody>
   </table>
   </div>
 </div>
@@ -104,29 +99,21 @@ tr:hover { background: #f0f4f8; }
 <div class="modal-box">
   <h3 id="addModalTitle">新規物件登録</h3>
   <input type="hidden" id="editId">
-  <div class="form-group"><label>物件コード</label><input id="f_code" type="text" placeholder="例：2024-001"></div>
-  <div class="form-group"><label>物件名</label><input id="f_name" type="text"></div>
-  <div class="form-group"><label>得意先名</label><input id="f_client" type="text"></div>
+  <div class="form-group">
+    <label>物件コード</label>
+    <input id="f_code" type="text" placeholder="例：2024-001">
+  </div>
+  <div class="form-group">
+    <label>物件名 <span style="color:red">*</span></label>
+    <input id="f_name" type="text" placeholder="物件名を入力">
+  </div>
+  <div class="form-group">
+    <label>得意先名</label>
+    <input id="f_client" type="text" placeholder="得意先名を入力">
+  </div>
   <div class="modal-footer">
     <button class="btn btn-secondary" onclick="closeModal('addModal')">キャンセル</button>
     <button class="btn btn-primary" onclick="saveProject()">保存</button>
-  </div>
-</div>
-</div>
-
-<!-- ステータス変更モーダル -->
-<div id="statusModal" class="modal">
-<div class="modal-box" style="min-width:300px">
-  <h3>ステータス変更</h3>
-  <input type="hidden" id="statusProjectId">
-  <input type="hidden" id="statusField">
-  <div class="form-group">
-    <label>ステータス</label>
-    <select id="statusValue"></select>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-secondary" onclick="closeModal('statusModal')">キャンセル</button>
-    <button class="btn btn-primary" onclick="saveStatus()">変更</button>
   </div>
 </div>
 </div>
@@ -170,23 +157,38 @@ tr:hover { background: #f0f4f8; }
 </div>
 
 <script>
-function showPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+// ===== ページ切り替え =====
+function showPage(page, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('page-' + page).classList.add('active');
-  event.target.classList.add('active');
+  if (btn) btn.classList.add('active');
   if (page === 'zaizai') loadProjectSelector();
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+// ===== モーダル =====
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// モーダル外クリックで閉じる
+document.querySelectorAll('.modal').forEach(function(m) {
+  m.addEventListener('click', function(e) {
+    if (e.target === m) m.classList.remove('open');
+  });
+});
 
 // ===== 物件マスター =====
-function openAddModal() {
+
+// 新規登録ボタン（addEventListener使用で確実に動作）
+document.getElementById('btnNewProject').addEventListener('click', function() {
   document.getElementById('addModalTitle').textContent = '新規物件登録';
   document.getElementById('editId').value = '';
-  ['f_code','f_name','f_client'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_code').value = '';
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_client').value = '';
   document.getElementById('addModal').classList.add('open');
-}
+});
 
 function openEditModal(p) {
   document.getElementById('addModalTitle').textContent = '物件編集';
@@ -198,117 +200,162 @@ function openEditModal(p) {
 }
 
 async function saveProject() {
-  const id = document.getElementById('editId').value;
-  const body = {
-    project_code: document.getElementById('f_code').value,
-    project_name: document.getElementById('f_name').value,
-    client_name: document.getElementById('f_client').value
+  var id = document.getElementById('editId').value;
+  var projectName = document.getElementById('f_name').value.trim();
+  if (!projectName) {
+    alert('物件名を入力してください');
+    return;
+  }
+  var body = {
+    project_code: document.getElementById('f_code').value.trim(),
+    project_name: projectName,
+    client_name: document.getElementById('f_client').value.trim()
   };
-  if (!body.project_name) { alert('物件名を入力してください'); return; }
   if (!id) body.status = 'active';
-  const url = id ? '/api/projects/' + id : '/api/projects';
-  const method = id ? 'PUT' : 'POST';
-  const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  if (res.ok) { closeModal('addModal'); loadProjects(); }
-  else alert('保存失敗');
+  var url = id ? '/api/projects/' + id : '/api/projects';
+  var method = id ? 'PUT' : 'POST';
+  try {
+    var res = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      closeModal('addModal');
+      loadProjects();
+    } else {
+      var err = await res.json();
+      alert('保存失敗: ' + (err.error || '不明なエラー'));
+    }
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 async function archiveProject(id, name) {
   if (!confirm('「' + name + '」を完了にしますか？\n完了にすると一覧から非表示になります。')) return;
-  const res = await fetch('/api/projects/' + id, {
-    method: 'PUT',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ status: 'archived' })
-  });
-  if (res.ok) loadProjects();
-  else alert('更新失敗');
+  try {
+    var res = await fetch('/api/projects/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'archived' })
+    });
+    if (res.ok) {
+      loadProjects();
+    } else {
+      alert('更新失敗');
+    }
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 async function loadProjects() {
-  const res = await fetch('/api/projects');
-  const data = await res.json();
-  const tbody = document.getElementById('projectBody');
-  if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">物件データがありません</td></tr>';
-    return;
+  var tbody = document.getElementById('projectBody');
+  try {
+    var res = await fetch('/api/projects');
+    if (!res.ok) {
+      var err = await res.json();
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc3545;padding:20px;">エラー: ' + (err.error || 'サーバーエラー') + '</td></tr>';
+      return;
+    }
+    var data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">物件データがありません</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(function(p, i) {
+      var createdAt = p.created_at ? p.created_at.slice(0, 10) : '';
+      var safeName = (p.project_name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + (p.project_code || '') + '</td>' +
+        '<td>' + (p.project_name || '') + '</td>' +
+        '<td>' + (p.client_name || '') + '</td>' +
+        '<td>' + createdAt + '</td>' +
+        '<td>' +
+          '<button class="btn btn-secondary" onclick=\'openEditModal(' + JSON.stringify(p) + ')\'>編集</button> ' +
+          '<button class="btn btn-success" onclick="archiveProject(' + p.id + ',\'' + safeName + '\')">完了</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc3545;padding:20px;">サーバーに接続できません。サーバーを起動してください。</td></tr>';
   }
-  tbody.innerHTML = data.map((p, i) => {
-    const createdAt = p.created_at ? p.created_at.slice(0,10) : '';
-    return `<tr>
-      <td>${i+1}</td>
-      <td>${p.project_code || ''}</td>
-      <td>${p.project_name || ''}</td>
-      <td>${p.client_name || ''}</td>
-      <td>${createdAt}</td>
-      <td>
-        <button class="btn btn-secondary" onclick='openEditModal(${JSON.stringify(p)})'>編集</button>
-        <button class="btn btn-success" onclick="archiveProject(${p.id},'${(p.project_name||'').replace(/'/g,'\\'+'\\'')}')">完了</button>
-      </td>
-    </tr>`;
-  }).join('');
 }
 
 // ===== 資材部管理 =====
-let currentProjectId = null;
+var currentProjectId = null;
 
 async function loadProjectSelector() {
-  const res = await fetch('/api/projects');
-  const data = await res.json();
-  const sel = document.getElementById('projectSelect');
-  sel.innerHTML = '<option value="">-- 物件を選択してください --</option>' +
-    data.map(p => `<option value="${p.id}">${p.project_name}</option>`).join('');
+  try {
+    var res = await fetch('/api/projects');
+    if (!res.ok) return;
+    var data = await res.json();
+    if (!Array.isArray(data)) return;
+    var sel = document.getElementById('projectSelect');
+    sel.innerHTML = '<option value="">-- 物件を選択してください --</option>' +
+      data.map(function(p) { return '<option value="' + p.id + '">' + (p.project_name || '') + '</option>'; }).join('');
+  } catch (e) {}
 }
 
 async function loadOrderItems() {
-  const sel = document.getElementById('projectSelect');
+  var sel = document.getElementById('projectSelect');
   currentProjectId = sel.value;
-  const addBtn = document.getElementById('addItemBtn');
+  var addBtn = document.getElementById('addItemBtn');
+  var tbody = document.getElementById('orderBody');
   if (!currentProjectId) {
-    document.getElementById('orderBody').innerHTML = '';
+    tbody.innerHTML = '';
     addBtn.style.display = 'none';
     return;
   }
   addBtn.style.display = 'inline-block';
-  const res = await fetch('/api/order-details/' + currentProjectId);
-  const data = await res.json();
-  const tbody = document.getElementById('orderBody');
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;">明細データがありません</td></tr>';
-    return;
+  try {
+    var res = await fetch('/api/order-items/' + currentProjectId);
+    var data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;">明細データがありません</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(function(d) {
+      var arrived = d.arrived_qty || 0;
+      var pending = d.pending_qty || 0;
+      var delivery = d.tentative_delivery ? d.tentative_delivery.slice(0, 10) : '';
+      return '<tr>' +
+        '<td>' + (d.tsushi_no || '') + '</td>' +
+        '<td>' + (d.trading_company || '') + '</td>' +
+        '<td>' + (d.maker || '') + '</td>' +
+        '<td>' + delivery + '</td>' +
+        '<td>' + (d.section || '') + '</td>' +
+        '<td>' + (d.contract_no || '') + '</td>' +
+        '<td>' + (d.steel_type || '') + '</td>' +
+        '<td>' + (d.size || '') + '</td>' +
+        '<td>' + (d.standard || '') + '</td>' +
+        '<td>' + (d.length_mm || '') + '</td>' +
+        '<td>' + (d.qty || '') + '</td>' +
+        '<td>' + (d.weight_kg || '') + '</td>' +
+        '<td>' + (d.destination || '') + '</td>' +
+        '<td class="arrived">' + arrived + '</td>' +
+        '<td class="pending">' + pending + '</td>' +
+        '<td>' + (d.note || '') + '</td>' +
+        '<td>' +
+          '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
+          '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#dc3545;">読み込みエラー</td></tr>';
   }
-  tbody.innerHTML = data.map(d => {
-    const arrived = d.arrived_qty || 0;
-    const pending = d.pending_qty || 0;
-    const delivery = d.tentative_delivery ? d.tentative_delivery.slice(0,10) : '';
-    return `<tr>
-      <td>${d.seq_no || ''}</td>
-      <td>${d.trading_company || ''}</td>
-      <td>${d.Maker || ''}</td>
-      <td>${delivery}</td>
-      <td>${d.セクション || ''}</td>
-      <td>${d.contract_no || ''}</td>
-      <td>${d.steel_type || ''}</td>
-      <td>${d.サイズ || ''}</td>
-      <td>${d.標準 || ''}</td>
-      <td>${d.length_mm || ''}</td>
-      <td>${d.員数 || ''}</td>
-      <td>${d.weight_kg || ''}</td>
-      <td>${d.宛先 || ''}</td>
-      <td class="arrived">${arrived}</td>
-      <td class="pending">${pending}</td>
-      <td>${d.注釈 || ''}</td>
-      <td>
-        <button class="btn btn-secondary" onclick='openEditItemModal(${JSON.stringify(d)})'>編集</button>
-        <button class="btn btn-danger" onclick="deleteItem(${d.id})">削除</button>
-      </td>
-    </tr>`;
-  }).join('');
 }
 
 function openAddItemModal() {
   document.getElementById('itemModalTitle').textContent = '明細追加';
   document.getElementById('editItemId').value = '';
-  ['i_seq','i_trading','i_maker','i_delivery','i_section','i_contract','i_steel','i_size','i_standard','i_length','i_qty','i_weight','i_dest','i_note'].forEach(id => document.getElementById(id).value = '');
+  ['i_seq','i_trading','i_maker','i_section','i_contract','i_steel','i_size','i_standard','i_length','i_qty','i_weight','i_dest','i_note'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('i_delivery').value = '';
   document.getElementById('i_arrived').value = '0';
   document.getElementById('i_pending').value = '0';
   document.getElementById('addItemModal').classList.add('open');
@@ -317,60 +364,69 @@ function openAddItemModal() {
 function openEditItemModal(d) {
   document.getElementById('itemModalTitle').textContent = '明細編集';
   document.getElementById('editItemId').value = d.id;
-  document.getElementById('i_seq').value = d.seq_no || '';
+  document.getElementById('i_seq').value = d.tsushi_no || '';
   document.getElementById('i_trading').value = d.trading_company || '';
-  document.getElementById('i_maker').value = d.Maker || '';
+  document.getElementById('i_maker').value = d.maker || '';
   document.getElementById('i_delivery').value = d.tentative_delivery ? d.tentative_delivery.slice(0,10) : '';
-  document.getElementById('i_section').value = d.セクション || '';
+  document.getElementById('i_section').value = d.section || '';
   document.getElementById('i_contract').value = d.contract_no || '';
   document.getElementById('i_steel').value = d.steel_type || '';
-  document.getElementById('i_size').value = d.サイズ || '';
-  document.getElementById('i_standard').value = d.標準 || '';
+  document.getElementById('i_size').value = d.size || '';
+  document.getElementById('i_standard').value = d.standard || '';
   document.getElementById('i_length').value = d.length_mm || '';
-  document.getElementById('i_qty').value = d.員数 || '';
+  document.getElementById('i_qty').value = d.qty || '';
   document.getElementById('i_weight').value = d.weight_kg || '';
-  document.getElementById('i_dest').value = d.宛先 || '';
+  document.getElementById('i_dest').value = d.destination || '';
   document.getElementById('i_arrived').value = d.arrived_qty || 0;
   document.getElementById('i_pending').value = d.pending_qty || 0;
-  document.getElementById('i_note').value = d.注釈 || '';
+  document.getElementById('i_note').value = d.note || '';
   document.getElementById('addItemModal').classList.add('open');
 }
 
 async function saveItem() {
-  const id = document.getElementById('editItemId').value;
-  const body = {
+  var id = document.getElementById('editItemId').value;
+  var body = {
     project_id: currentProjectId,
-    seq_no: document.getElementById('i_seq').value,
+    tsushi_no: document.getElementById('i_seq').value,
     trading_company: document.getElementById('i_trading').value,
-    Maker: document.getElementById('i_maker').value,
+    maker: document.getElementById('i_maker').value,
     tentative_delivery: document.getElementById('i_delivery').value || null,
-    セクション: document.getElementById('i_section').value,
+    section: document.getElementById('i_section').value,
     contract_no: document.getElementById('i_contract').value,
     steel_type: document.getElementById('i_steel').value,
-    サイズ: document.getElementById('i_size').value,
-    標準: document.getElementById('i_standard').value,
+    size: document.getElementById('i_size').value,
+    standard: document.getElementById('i_standard').value,
     length_mm: document.getElementById('i_length').value || null,
-    員数: document.getElementById('i_qty').value || null,
+    qty: document.getElementById('i_qty').value || null,
     weight_kg: document.getElementById('i_weight').value || null,
-    宛先: document.getElementById('i_dest').value,
-    arrived_qty: document.getElementById('i_arrived').value || 0,
-    pending_qty: document.getElementById('i_pending').value || 0,
-    注釈: document.getElementById('i_note').value
+    destination: document.getElementById('i_dest').value,
+    arrived_qty: parseInt(document.getElementById('i_arrived').value) || 0,
+    pending_qty: parseInt(document.getElementById('i_pending').value) || 0,
+    note: document.getElementById('i_note').value
   };
-  const url = id ? '/api/order-details/' + id : '/api/order-details';
-  const method = id ? 'PUT' : 'POST';
-  const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
-  else { const err = await res.json(); alert('保存失敗: ' + err.error); }
+  var url = id ? '/api/order-items/' + id : '/api/order-items';
+  var method = id ? 'PUT' : 'POST';
+  try {
+    var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
+    else { var err = await res.json(); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 async function deleteItem(id) {
   if (!confirm('この明細を削除しますか？')) return;
-  const res = await fetch('/api/order-details/' + id, { method: 'DELETE' });
-  if (res.ok) loadOrderItems();
-  else alert('削除失敗');
+  try {
+    var res = await fetch('/api/order-items/' + id, { method: 'DELETE' });
+    if (res.ok) loadOrderItems();
+    else alert('削除失敗');
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
+// 起動時に物件一覧を読み込む
 loadProjects();
 </script>
 </body>
