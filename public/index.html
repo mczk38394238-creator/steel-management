@@ -11,6 +11,8 @@ body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
 .nav { background: #2c5f8a; display: flex; gap: 4px; padding: 8px 20px; }
 .nav button { background: transparent; color: #aac; border: 1px solid #4a8; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
 .nav button.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
+.nav button.trash-btn { border-color: #c84; color: #fb8; }
+.nav button.trash-btn.active { background: #6b3a1f; border-color: #6b3a1f; color: white; }
 .content { padding: 20px; }
 .page { display: none; }
 .page.active { display: block; }
@@ -19,11 +21,14 @@ h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
 .btn-primary { background: #1a3a5c; color: white; }
 .btn-secondary { background: #6c757d; color: white; font-size: 12px; padding: 4px 10px; }
 .btn-danger { background: #dc3545; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-danger-lg { background: #dc3545; color: white; font-size: 14px; }
 .btn-success { background: #28a745; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-restore { background: #fd7e14; color: white; font-size: 12px; padding: 4px 10px; }
 table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; }
 th { background: #1a3a5c; color: white; padding: 8px 6px; text-align: left; white-space: nowrap; }
 td { padding: 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
 tr:hover { background: #f0f4f8; }
+tr.selected-row { background: #fff3cd !important; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
 .modal.open { display: flex; align-items: center; justify-content: center; }
 .modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 360px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
@@ -35,13 +40,17 @@ tr:hover { background: #f0f4f8; }
 .form-row .form-group { flex: 1; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 .note { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+.trash-note { background: #f8d7da; border: 1px solid #f5c6cb; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
 .project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .project-selector label { font-weight: bold; color: #333; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
 .table-wrap { overflow-x: auto; }
 .arrived { color: #28a745; font-weight: bold; }
 .pending { color: #dc3545; font-weight: bold; }
-.msg-error { color: #dc3545; font-size: 13px; margin-top: 8px; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.badge-count { background: #dc3545; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+th input[type="checkbox"] { vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -49,6 +58,7 @@ tr:hover { background: #f0f4f8; }
 <div class="nav">
   <button class="active" onclick="showPage('master', this)">物件マスター</button>
   <button onclick="showPage('zaizai', this)">資材部管理</button>
+  <button class="trash-btn" onclick="showPage('trash', this)">🗑 ゴミ箱</button>
 </div>
 <div class="content">
 
@@ -63,6 +73,27 @@ tr:hover { background: #f0f4f8; }
     </tr></thead>
     <tbody id="projectBody">
       <tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ゴミ箱 -->
+<div id="page-trash" class="page">
+  <h2>🗑 ゴミ箱</h2>
+  <div class="trash-note">⚠ ここに表示される物件を「完全削除」するとデータベースから取り消せません。「元に戻す」で物件マスターに復元できます。</div>
+  <div class="toolbar">
+    <button class="btn btn-danger-lg" onclick="permanentDeleteSelected()">🗑 選択した物件を完全削除</button>
+    <span id="trashSelectedCount" class="badge-count" style="display:none">0件選択中</span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th><input type="checkbox" id="trashCheckAll" title="全選択"></th>
+      <th>No</th><th>物件コード</th><th>物件名</th><th>得意先名</th><th>登録日</th><th>操作</th>
+    </tr></thead>
+    <tbody id="trashBody">
+      <tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">ゴミ箱は空です</td></tr>
     </tbody>
   </table>
   </div>
@@ -164,6 +195,7 @@ function showPage(page, btn) {
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
   if (page === 'zaizai') loadProjectSelector();
+  if (page === 'trash') loadTrash();
 }
 
 // ===== モーダル =====
@@ -171,7 +203,6 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
-// モーダル外クリックで閉じる
 document.querySelectorAll('.modal').forEach(function(m) {
   m.addEventListener('click', function(e) {
     if (e.target === m) m.classList.remove('open');
@@ -180,7 +211,6 @@ document.querySelectorAll('.modal').forEach(function(m) {
 
 // ===== 物件マスター =====
 
-// 新規登録ボタン（addEventListener使用で確実に動作）
 document.getElementById('btnNewProject').addEventListener('click', function() {
   document.getElementById('addModalTitle').textContent = '新規物件登録';
   document.getElementById('editId').value = '';
@@ -202,10 +232,7 @@ function openEditModal(p) {
 async function saveProject() {
   var id = document.getElementById('editId').value;
   var projectName = document.getElementById('f_name').value.trim();
-  if (!projectName) {
-    alert('物件名を入力してください');
-    return;
-  }
+  if (!projectName) { alert('物件名を入力してください'); return; }
   var body = {
     project_code: document.getElementById('f_code').value.trim(),
     project_name: projectName,
@@ -215,35 +242,24 @@ async function saveProject() {
   var url = id ? '/api/projects/' + id : '/api/projects';
   var method = id ? 'PUT' : 'POST';
   try {
-    var res = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (res.ok) {
-      closeModal('addModal');
-      loadProjects();
-    } else {
-      var err = await res.json();
-      alert('保存失敗: ' + (err.error || '不明なエラー'));
-    }
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
+    var res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) { closeModal('addModal'); loadProjects(); }
+    else { var err = await res.json(); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
+// ゴミ箱へ移動（ソフトデリート）
 async function deleteProject(id, name) {
-  if (!confirm('「' + name + '」を完全に削除しますか？\nこの操作は元に戻せません。')) return;
+  if (!confirm('「' + name + '」をゴミ箱に移動しますか？')) return;
   try {
-    var res = await fetch('/api/projects/' + id, { method: 'DELETE' });
-    if (res.ok) {
-      loadProjects();
-    } else {
-      alert('削除失敗');
-    }
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
+    var res = await fetch('/api/projects/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'deleted' })
+    });
+    if (res.ok) { loadProjects(); }
+    else { alert('削除失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
 async function archiveProject(id, name) {
@@ -254,14 +270,9 @@ async function archiveProject(id, name) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'archived' })
     });
-    if (res.ok) {
-      loadProjects();
-    } else {
-      alert('更新失敗');
-    }
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
+    if (res.ok) { loadProjects(); }
+    else { alert('更新失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
 async function loadProjects() {
@@ -299,6 +310,114 @@ async function loadProjects() {
   }
 }
 
+// ===== ゴミ箱 =====
+
+async function loadTrash() {
+  var tbody = document.getElementById('trashBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  updateTrashSelection();
+  try {
+    var res = await fetch('/api/projects/trash');
+    if (!res.ok) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+      return;
+    }
+    var data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">ゴミ箱は空です</td></tr>';
+      document.getElementById('trashCheckAll').checked = false;
+      return;
+    }
+    tbody.innerHTML = data.map(function(p, i) {
+      var createdAt = p.created_at ? p.created_at.slice(0, 10) : '';
+      var safeName = (p.project_name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return '<tr id="trash-row-' + p.id + '">' +
+        '<td><input type="checkbox" class="trash-check" value="' + p.id + '" onchange="updateTrashSelection()"></td>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + (p.project_code || '') + '</td>' +
+        '<td>' + (p.project_name || '') + '</td>' +
+        '<td>' + (p.client_name || '') + '</td>' +
+        '<td>' + createdAt + '</td>' +
+        '<td>' +
+          '<button class="btn btn-restore" onclick="restoreProject(' + p.id + ',\'' + safeName + '\')">元に戻す</button> ' +
+          '<button class="btn btn-danger" onclick="permanentDeleteOne(' + p.id + ',\'' + safeName + '\')">完全削除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">サーバーに接続できません</td></tr>';
+  }
+}
+
+// 全選択チェックボックス
+document.getElementById('trashCheckAll').addEventListener('change', function() {
+  var checked = this.checked;
+  document.querySelectorAll('.trash-check').forEach(function(cb) {
+    cb.checked = checked;
+    var row = cb.closest('tr');
+    if (row) row.classList.toggle('selected-row', checked);
+  });
+  updateTrashSelection();
+});
+
+function updateTrashSelection() {
+  var checks = document.querySelectorAll('.trash-check:checked');
+  var badge = document.getElementById('trashSelectedCount');
+  if (checks.length > 0) {
+    badge.textContent = checks.length + '件選択中';
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+  // 行のハイライト更新
+  document.querySelectorAll('.trash-check').forEach(function(cb) {
+    var row = cb.closest('tr');
+    if (row) row.classList.toggle('selected-row', cb.checked);
+  });
+}
+
+// 元に戻す
+async function restoreProject(id, name) {
+  if (!confirm('「' + name + '」を物件マスターに戻しますか？')) return;
+  try {
+    var res = await fetch('/api/projects/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' })
+    });
+    if (res.ok) { loadTrash(); }
+    else { alert('復元失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// 1件完全削除
+async function permanentDeleteOne(id, name) {
+  if (!confirm('「' + name + '」を完全に削除しますか？\nこの操作は元に戻せません。')) return;
+  try {
+    var res = await fetch('/api/projects/' + id, { method: 'DELETE' });
+    if (res.ok) { loadTrash(); }
+    else { alert('削除失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// 選択した物件を一括完全削除
+async function permanentDeleteSelected() {
+  var checks = document.querySelectorAll('.trash-check:checked');
+  if (checks.length === 0) { alert('削除する物件を選択してください'); return; }
+  if (!confirm(checks.length + '件を完全に削除しますか？\nこの操作は元に戻せません。')) return;
+  var ids = Array.from(checks).map(function(cb) { return cb.value; });
+  var failed = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var res = await fetch('/api/projects/' + ids[i], { method: 'DELETE' });
+      if (!res.ok) failed++;
+    } catch (e) { failed++; }
+  }
+  if (failed > 0) alert(failed + '件の削除に失敗しました');
+  document.getElementById('trashCheckAll').checked = false;
+  loadTrash();
+}
+
 // ===== 資材部管理 =====
 var currentProjectId = null;
 
@@ -319,11 +438,7 @@ async function loadOrderItems() {
   currentProjectId = sel.value;
   var addBtn = document.getElementById('addItemBtn');
   var tbody = document.getElementById('orderBody');
-  if (!currentProjectId) {
-    tbody.innerHTML = '';
-    addBtn.style.display = 'none';
-    return;
-  }
+  if (!currentProjectId) { tbody.innerHTML = ''; addBtn.style.display = 'none'; return; }
   addBtn.style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
@@ -425,9 +540,7 @@ async function saveItem() {
     var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
     else { var err = await res.json(); alert('保存失敗: ' + (err.error || '不明なエラー')); }
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
 async function deleteItem(id) {
@@ -436,9 +549,7 @@ async function deleteItem(id) {
     var res = await fetch('/api/order-items/' + id, { method: 'DELETE' });
     if (res.ok) loadOrderItems();
     else alert('削除失敗');
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
+  } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
 // 起動時に物件一覧を読み込む
