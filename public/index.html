@@ -194,6 +194,7 @@ function showPage(page, btn) {
   document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
+  if (page === 'master') loadProjects();
   if (page === 'zaizai') loadProjectSelector();
   if (page === 'trash') loadTrash();
 }
