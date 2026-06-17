@@ -24,18 +24,22 @@ h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
 .btn-danger-lg { background: #dc3545; color: white; font-size: 14px; }
 .btn-success { background: #28a745; color: white; font-size: 12px; padding: 4px 10px; }
 .btn-restore { background: #fd7e14; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-excel { background: #217346; color: white; font-size: 14px; }
 table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; }
 th { background: #1a3a5c; color: white; padding: 8px 6px; text-align: left; white-space: nowrap; }
-td { padding: 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
-tr:hover { background: #f0f4f8; }
-tr.selected-row { background: #fff3cd !important; }
+td { padding: 5px 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+td.editable { cursor: pointer; }
+td.editable:hover { background: #e8f4fd !important; outline: 1px solid #aac; }
+tr:hover td { background: #f0f4f8; }
+tr.selected-row td { background: #fff3cd !important; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
 .modal.open { display: flex; align-items: center; justify-content: center; }
 .modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 360px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+.modal-box.wide { max-width: 1000px; }
 .modal-box h3 { margin-bottom: 16px; font-size: 16px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; font-weight: bold; }
-.form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
 .form-row { display: flex; gap: 12px; }
 .form-row .form-group { flex: 1; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
@@ -51,6 +55,11 @@ tr.selected-row { background: #fff3cd !important; }
 .badge-count { background: #dc3545; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
 input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 th input[type="checkbox"] { vertical-align: middle; }
+.preview-table-wrap { overflow: auto; max-height: 380px; margin-top: 8px; border: 1px solid #ddd; }
+.preview-table-wrap table { font-size: 11px; min-width: max-content; }
+.preview-table-wrap th { padding: 4px 6px; position: sticky; top: 0; }
+.preview-table-wrap td { padding: 3px 6px; }
+.inline-input { width: 100%; min-width: 60px; padding: 2px 4px; border: 2px solid #1a3a5c; border-radius: 2px; font-size: 13px; background: #fffde7; font-family: inherit; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -102,13 +111,14 @@ th input[type="checkbox"] { vertical-align: middle; }
 <!-- 資材部管理 -->
 <div id="page-zaizai" class="page">
   <h2>資材部管理画面</h2>
-  <div class="note">※ 規格部「-T」は高規格材とする（弊社独自規定）</div>
+  <div class="note">※ 規格部「-T」は高規格材とする（弊社独自規定）。各データセルをクリックすると直接編集できます。</div>
   <div class="project-selector">
     <label>物件選択：</label>
     <select id="projectSelect" onchange="loadOrderItems()">
       <option value="">-- 物件を選択してください --</option>
     </select>
     <button class="btn btn-primary" onclick="openAddItemModal()" id="addItemBtn" style="display:none">＋ 明細追加</button>
+    <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
   </div>
   <div class="table-wrap">
   <table>
@@ -116,14 +126,14 @@ th input[type="checkbox"] { vertical-align: middle; }
       <th>通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
-      <th>備考</th><th>操作</th>
+      <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
     </tr></thead>
     <tbody id="orderBody"></tbody>
   </table>
   </div>
 </div>
 
-</div>
+</div><!-- /content -->
 
 <!-- 物件登録モーダル -->
 <div id="addModal" class="modal">
@@ -149,7 +159,7 @@ th input[type="checkbox"] { vertical-align: middle; }
 </div>
 </div>
 
-<!-- 明細追加モーダル -->
+<!-- 明細追加・編集モーダル -->
 <div id="addItemModal" class="modal">
 <div class="modal-box">
   <h3 id="itemModalTitle">明細追加</h3>
@@ -160,7 +170,7 @@ th input[type="checkbox"] { vertical-align: middle; }
     <div class="form-group"><label>メーカー</label><input id="i_maker" type="text"></div>
   </div>
   <div class="form-row">
-    <div class="form-group"><label>暫定納期</label><input id="i_delivery" type="date"></div>
+    <div class="form-group"><label>暫定納期</label><input id="i_delivery" type="text" placeholder="例：4/末～、5/中旬"></div>
     <div class="form-group"><label>工区部位</label><input id="i_section" type="text"></div>
     <div class="form-group"><label>契約No</label><input id="i_contract" type="text"></div>
   </div>
@@ -172,17 +182,52 @@ th input[type="checkbox"] { vertical-align: middle; }
   <div class="form-row">
     <div class="form-group"><label>長さ(mm)</label><input id="i_length" type="text"></div>
     <div class="form-group"><label>員数</label><input id="i_qty" type="text"></div>
-    <div class="form-group"><label>重量(kg)</label><input id="i_weight" type="text"></div>
+    <div class="form-group"><label>重量(Kg)</label><input id="i_weight" type="text"></div>
   </div>
   <div class="form-row">
     <div class="form-group"><label>向け先</label><input id="i_dest" type="text"></div>
     <div class="form-group"><label>入荷本数</label><input id="i_arrived" type="text" value="0"></div>
     <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
   </div>
-  <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
+  <div class="form-row">
+    <div class="form-group"><label>未入荷重量(Kg)</label><input id="i_pending_weight" type="text" value="0"></div>
+    <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
+  </div>
   <div class="modal-footer">
     <button class="btn btn-secondary" onclick="closeModal('addItemModal')">キャンセル</button>
     <button class="btn btn-primary" onclick="saveItem()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- Excel貼り付けモーダル -->
+<div id="pasteModal" class="modal">
+<div class="modal-box wide">
+  <h3>📋 Excelから貼り付けて登録</h3>
+
+  <!-- Step1: 貼り付け -->
+  <div id="pasteStep1">
+    <p style="margin-bottom:8px;font-size:13px;color:#555;">「ロール材」シートのヘッダー行を除くデータ範囲（21列分）をコピーして貼り付けてください。</p>
+    <div class="form-group">
+      <label>貼り付けエリア</label>
+      <textarea id="pasteArea" style="height:200px;font-size:12px;font-family:monospace;" placeholder="ここにExcelからコピーしたデータを貼り付けてください..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('pasteModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="previewPaste()">内容を確認する →</button>
+    </div>
+  </div>
+
+  <!-- Step2: プレビュー -->
+  <div id="pasteStep2" style="display:none;">
+    <p id="pastePreviewCount" style="margin-bottom:8px;font-size:13px;font-weight:bold;color:#1a3a5c;"></p>
+    <div class="preview-table-wrap">
+      <table id="pastePreviewTable"></table>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="backToPaste()">← 戻る</button>
+      <button class="btn btn-excel" onclick="registerPaste()">この内容で登録する</button>
+    </div>
   </div>
 </div>
 </div>
@@ -194,12 +239,10 @@ function showPage(page, btn) {
   document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (page === 'master') loadProjects();
   if (page === 'zaizai') loadProjectSelector();
   if (page === 'trash') loadTrash();
 }
 
-// ===== モーダル =====
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
@@ -211,7 +254,6 @@ document.querySelectorAll('.modal').forEach(function(m) {
 });
 
 // ===== 物件マスター =====
-
 document.getElementById('btnNewProject').addEventListener('click', function() {
   document.getElementById('addModalTitle').textContent = '新規物件登録';
   document.getElementById('editId').value = '';
@@ -243,26 +285,22 @@ async function saveProject() {
   var url = id ? '/api/projects/' + id : '/api/projects';
   var method = id ? 'PUT' : 'POST';
   try {
-    var res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (res.ok) { closeModal('addModal'); loadProjects(); }
-    else { var err = await res.json(); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+    else { var err = await res.json().catch(function(){return{};}); alert('保存失敗: ' + (err.error || '不明なエラー')); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
-// ゴミ箱へ移動（ソフトデリート）
 async function deleteProject(id, name) {
   if (!confirm('「' + name + '」をゴミ箱に移動しますか？')) return;
   try {
     var res = await fetch('/api/projects/' + id, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ status: 'deleted' })
     });
     if (res.ok) { loadProjects(); }
-    else {
-      var err = await res.json().catch(function() { return {}; });
-      alert('削除失敗: ' + (err.error || 'ステータスコード ' + res.status));
-    }
+    else { var err = await res.json().catch(function(){return{};}); alert('削除失敗: ' + (err.error || 'ステータスコード ' + res.status)); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
@@ -271,7 +309,7 @@ async function archiveProject(id, name) {
   try {
     var res = await fetch('/api/projects/' + id, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ status: 'archived' })
     });
     if (res.ok) { loadProjects(); }
@@ -284,7 +322,7 @@ async function loadProjects() {
   try {
     var res = await fetch('/api/projects');
     if (!res.ok) {
-      var err = await res.json();
+      var err = await res.json().catch(function(){return{};});
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc3545;padding:20px;">エラー: ' + (err.error || 'サーバーエラー') + '</td></tr>';
       return;
     }
@@ -315,17 +353,13 @@ async function loadProjects() {
 }
 
 // ===== ゴミ箱 =====
-
 async function loadTrash() {
   var tbody = document.getElementById('trashBody');
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
   updateTrashSelection();
   try {
     var res = await fetch('/api/projects/trash');
-    if (!res.ok) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
-      return;
-    }
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>'; return; }
     var data = await res.json();
     if (!Array.isArray(data) || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">ゴミ箱は空です</td></tr>';
@@ -353,7 +387,6 @@ async function loadTrash() {
   }
 }
 
-// 全選択チェックボックス
 document.getElementById('trashCheckAll').addEventListener('change', function() {
   var checked = this.checked;
   document.querySelectorAll('.trash-check').forEach(function(cb) {
@@ -367,44 +400,30 @@ document.getElementById('trashCheckAll').addEventListener('change', function() {
 function updateTrashSelection() {
   var checks = document.querySelectorAll('.trash-check:checked');
   var badge = document.getElementById('trashSelectedCount');
-  if (checks.length > 0) {
-    badge.textContent = checks.length + '件選択中';
-    badge.style.display = 'inline-block';
-  } else {
-    badge.style.display = 'none';
-  }
-  // 行のハイライト更新
+  if (checks.length > 0) { badge.textContent = checks.length + '件選択中'; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
   document.querySelectorAll('.trash-check').forEach(function(cb) {
     var row = cb.closest('tr');
     if (row) row.classList.toggle('selected-row', cb.checked);
   });
 }
 
-// 元に戻す
 async function restoreProject(id, name) {
   if (!confirm('「' + name + '」を物件マスターに戻しますか？')) return;
   try {
-    var res = await fetch('/api/projects/' + id, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' })
-    });
-    if (res.ok) { loadTrash(); }
-    else { alert('復元失敗'); }
+    var res = await fetch('/api/projects/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'active' }) });
+    if (res.ok) { loadTrash(); } else { alert('復元失敗'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
-// 1件完全削除
 async function permanentDeleteOne(id, name) {
   if (!confirm('「' + name + '」を完全に削除しますか？\nこの操作は元に戻せません。')) return;
   try {
     var res = await fetch('/api/projects/' + id, { method: 'DELETE' });
-    if (res.ok) { loadTrash(); }
-    else { alert('削除失敗'); }
+    if (res.ok) { loadTrash(); } else { alert('削除失敗'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
-// 選択した物件を一括完全削除
 async function permanentDeleteSelected() {
   var checks = document.querySelectorAll('.trash-check:checked');
   if (checks.length === 0) { alert('削除する物件を選択してください'); return; }
@@ -412,10 +431,8 @@ async function permanentDeleteSelected() {
   var ids = Array.from(checks).map(function(cb) { return cb.value; });
   var failed = 0;
   for (var i = 0; i < ids.length; i++) {
-    try {
-      var res = await fetch('/api/projects/' + ids[i], { method: 'DELETE' });
-      if (!res.ok) failed++;
-    } catch (e) { failed++; }
+    try { var res = await fetch('/api/projects/' + ids[i], { method: 'DELETE' }); if (!res.ok) failed++; }
+    catch (e) { failed++; }
   }
   if (failed > 0) alert(failed + '件の削除に失敗しました');
   document.getElementById('trashCheckAll').checked = false;
@@ -437,41 +454,61 @@ async function loadProjectSelector() {
   } catch (e) {}
 }
 
+// 数値フィールド一覧
+var NUM_FIELDS = ['length_mm','qty','weight_kg','arrived_qty','pending_qty','pending_weight_kg'];
+
+function ed(id, field, val) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  return '<td class="editable" onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
+
+function edNum(id, field, val, cls) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  var clsAttr = cls ? ' class="editable ' + cls + '"' : ' class="editable"';
+  return '<td' + clsAttr + ' onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
+
 async function loadOrderItems() {
   var sel = document.getElementById('projectSelect');
   currentProjectId = sel.value;
   var addBtn = document.getElementById('addItemBtn');
+  var pasteBtn = document.getElementById('pasteBtn');
   var tbody = document.getElementById('orderBody');
-  if (!currentProjectId) { tbody.innerHTML = ''; addBtn.style.display = 'none'; return; }
+  if (!currentProjectId) {
+    tbody.innerHTML = '';
+    addBtn.style.display = 'none';
+    pasteBtn.style.display = 'none';
+    return;
+  }
   addBtn.style.display = 'inline-block';
+  pasteBtn.style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
     if (!Array.isArray(data) || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;">明細データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
     tbody.innerHTML = data.map(function(d) {
-      var arrived = d.arrived_qty || 0;
-      var pending = d.pending_qty || 0;
-      var delivery = d.tentative_delivery ? d.tentative_delivery.slice(0, 10) : '';
+      var delivery = d.tentative_delivery || '';
       return '<tr>' +
-        '<td>' + (d.tsushi_no || '') + '</td>' +
-        '<td>' + (d.trading_company || '') + '</td>' +
-        '<td>' + (d.maker || '') + '</td>' +
-        '<td>' + delivery + '</td>' +
-        '<td>' + (d.section || '') + '</td>' +
-        '<td>' + (d.contract_no || '') + '</td>' +
-        '<td>' + (d.steel_type || '') + '</td>' +
-        '<td>' + (d.size || '') + '</td>' +
-        '<td>' + (d.standard || '') + '</td>' +
-        '<td>' + (d.length_mm || '') + '</td>' +
-        '<td>' + (d.qty || '') + '</td>' +
-        '<td>' + (d.weight_kg || '') + '</td>' +
-        '<td>' + (d.destination || '') + '</td>' +
-        '<td class="arrived">' + arrived + '</td>' +
-        '<td class="pending">' + pending + '</td>' +
-        '<td>' + (d.note || '') + '</td>' +
+        ed(d.id, 'tsushi_no', d.tsushi_no) +
+        ed(d.id, 'trading_company', d.trading_company) +
+        ed(d.id, 'maker', d.maker) +
+        ed(d.id, 'tentative_delivery', delivery) +
+        ed(d.id, 'section', d.section) +
+        ed(d.id, 'contract_no', d.contract_no) +
+        ed(d.id, 'steel_type', d.steel_type) +
+        ed(d.id, 'size', d.size) +
+        ed(d.id, 'standard', d.standard) +
+        edNum(d.id, 'length_mm', d.length_mm, '') +
+        edNum(d.id, 'qty', d.qty, '') +
+        edNum(d.id, 'weight_kg', d.weight_kg, '') +
+        ed(d.id, 'destination', d.destination) +
+        edNum(d.id, 'arrived_qty', d.arrived_qty, 'arrived') +
+        edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
+        edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
+        ed(d.id, 'note', d.note) +
         '<td>' +
           '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
           '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
@@ -479,19 +516,75 @@ async function loadOrderItems() {
       '</tr>';
     }).join('');
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#dc3545;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
+// ===== インライン編集 =====
+function makeEditable(td, id, field) {
+  if (td.querySelector('input')) return; // 既に編集中
+  var originalText = td.textContent.trim();
+  var input = document.createElement('input');
+  input.className = 'inline-input';
+  input.type = 'text';
+  input.value = originalText;
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  var action = 'save';
+  var done = false;
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { action = 'cancel'; input.blur(); }
+  });
+
+  input.addEventListener('blur', async function() {
+    if (done) return;
+    done = true;
+    var newText = input.value.trim();
+    if (action === 'cancel' || newText === originalText) {
+      td.textContent = originalText;
+      return;
+    }
+    var body = {};
+    if (NUM_FIELDS.indexOf(field) !== -1) {
+      body[field] = newText === '' ? null : parseFloat(newText);
+    } else {
+      body[field] = newText || null;
+    }
+    try {
+      var res = await fetch('/api/order-items/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        td.textContent = newText;
+      } else {
+        var err = await res.json().catch(function(){return{};});
+        alert('更新失敗: ' + (err.error || '不明なエラー'));
+        td.textContent = originalText;
+      }
+    } catch (e) {
+      alert('通信エラー: ' + e.message);
+      td.textContent = originalText;
+    }
+  });
+}
+
+// ===== 明細モーダル =====
 function openAddItemModal() {
   document.getElementById('itemModalTitle').textContent = '明細追加';
   document.getElementById('editItemId').value = '';
-  ['i_seq','i_trading','i_maker','i_section','i_contract','i_steel','i_size','i_standard','i_length','i_qty','i_weight','i_dest','i_note'].forEach(function(id) {
-    document.getElementById(id).value = '';
-  });
-  document.getElementById('i_delivery').value = '';
+  ['i_seq','i_trading','i_maker','i_delivery','i_section','i_contract',
+   'i_steel','i_size','i_standard','i_length','i_qty','i_weight',
+   'i_dest','i_note'].forEach(function(id) { document.getElementById(id).value = ''; });
   document.getElementById('i_arrived').value = '0';
   document.getElementById('i_pending').value = '0';
+  document.getElementById('i_pending_weight').value = '0';
   document.getElementById('addItemModal').classList.add('open');
 }
 
@@ -501,18 +594,19 @@ function openEditItemModal(d) {
   document.getElementById('i_seq').value = d.tsushi_no || '';
   document.getElementById('i_trading').value = d.trading_company || '';
   document.getElementById('i_maker').value = d.maker || '';
-  document.getElementById('i_delivery').value = d.tentative_delivery ? d.tentative_delivery.slice(0,10) : '';
+  document.getElementById('i_delivery').value = d.tentative_delivery || '';
   document.getElementById('i_section').value = d.section || '';
   document.getElementById('i_contract').value = d.contract_no || '';
   document.getElementById('i_steel').value = d.steel_type || '';
   document.getElementById('i_size').value = d.size || '';
   document.getElementById('i_standard').value = d.standard || '';
-  document.getElementById('i_length').value = d.length_mm || '';
-  document.getElementById('i_qty').value = d.qty || '';
-  document.getElementById('i_weight').value = d.weight_kg || '';
+  document.getElementById('i_length').value = d.length_mm !== null && d.length_mm !== undefined ? d.length_mm : '';
+  document.getElementById('i_qty').value = d.qty !== null && d.qty !== undefined ? d.qty : '';
+  document.getElementById('i_weight').value = d.weight_kg !== null && d.weight_kg !== undefined ? d.weight_kg : '';
   document.getElementById('i_dest').value = d.destination || '';
-  document.getElementById('i_arrived').value = d.arrived_qty || 0;
-  document.getElementById('i_pending').value = d.pending_qty || 0;
+  document.getElementById('i_arrived').value = d.arrived_qty !== null && d.arrived_qty !== undefined ? d.arrived_qty : 0;
+  document.getElementById('i_pending').value = d.pending_qty !== null && d.pending_qty !== undefined ? d.pending_qty : 0;
+  document.getElementById('i_pending_weight').value = d.pending_weight_kg !== null && d.pending_weight_kg !== undefined ? d.pending_weight_kg : 0;
   document.getElementById('i_note').value = d.note || '';
   document.getElementById('addItemModal').classList.add('open');
 }
@@ -521,29 +615,30 @@ async function saveItem() {
   var id = document.getElementById('editItemId').value;
   var body = {
     project_id: currentProjectId,
-    tsushi_no: document.getElementById('i_seq').value,
-    trading_company: document.getElementById('i_trading').value,
-    maker: document.getElementById('i_maker').value,
+    tsushi_no: document.getElementById('i_seq').value || null,
+    trading_company: document.getElementById('i_trading').value || null,
+    maker: document.getElementById('i_maker').value || null,
     tentative_delivery: document.getElementById('i_delivery').value || null,
-    section: document.getElementById('i_section').value,
-    contract_no: document.getElementById('i_contract').value,
-    steel_type: document.getElementById('i_steel').value,
-    size: document.getElementById('i_size').value,
-    standard: document.getElementById('i_standard').value,
-    length_mm: document.getElementById('i_length').value || null,
-    qty: document.getElementById('i_qty').value || null,
-    weight_kg: document.getElementById('i_weight').value || null,
-    destination: document.getElementById('i_dest').value,
+    section: document.getElementById('i_section').value || null,
+    contract_no: document.getElementById('i_contract').value || null,
+    steel_type: document.getElementById('i_steel').value || null,
+    size: document.getElementById('i_size').value || null,
+    standard: document.getElementById('i_standard').value || null,
+    length_mm: document.getElementById('i_length').value ? parseFloat(document.getElementById('i_length').value) : null,
+    qty: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value) : null,
+    weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value) : null,
+    destination: document.getElementById('i_dest').value || null,
     arrived_qty: parseInt(document.getElementById('i_arrived').value) || 0,
     pending_qty: parseInt(document.getElementById('i_pending').value) || 0,
-    note: document.getElementById('i_note').value
+    pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value) : null,
+    note: document.getElementById('i_note').value || null
   };
   var url = id ? '/api/order-items/' + id : '/api/order-items';
   var method = id ? 'PUT' : 'POST';
   try {
     var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
-    else { var err = await res.json(); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+    else { var err = await res.json().catch(function(){return{};}); alert('保存失敗: ' + (err.error || '不明なエラー')); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
@@ -551,8 +646,115 @@ async function deleteItem(id) {
   if (!confirm('この明細を削除しますか？')) return;
   try {
     var res = await fetch('/api/order-items/' + id, { method: 'DELETE' });
-    if (res.ok) loadOrderItems();
-    else alert('削除失敗');
+    if (res.ok) loadOrderItems(); else alert('削除失敗');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ===== Excel貼り付け一括登録 =====
+
+// 21列の対応マッピング（0始まり）
+// スキップ列: 4(マスター工程使用時期), 7(証明書番号), 8(製鋼番号), 16(荷揃員数)
+var PASTE_COL_MAP = [
+  { col: 0,  field: 'tsushi_no',        label: '通しNo' },
+  { col: 1,  field: 'trading_company',  label: '商社' },
+  { col: 2,  field: 'maker',            label: 'メーカー' },
+  { col: 3,  field: 'tentative_delivery', label: '暫定納期' },
+  // 4: マスター工程使用時期 → スキップ
+  { col: 5,  field: 'section',          label: '工区・部位' },
+  { col: 6,  field: 'contract_no',      label: '契約No' },
+  // 7: 証明書番号 → スキップ
+  // 8: 製鋼番号 → スキップ
+  { col: 9,  field: 'steel_type',       label: '鋼種' },
+  { col: 10, field: 'size',             label: 'サイズ' },
+  { col: 11, field: 'standard',         label: '規格' },
+  { col: 12, field: 'length_mm',        label: '長さ(mm)' },
+  { col: 13, field: 'qty',              label: '員数' },
+  { col: 14, field: 'weight_kg',        label: '重量(Kg)' },
+  { col: 15, field: 'destination',      label: '向け先' },
+  // 16: 荷揃員数 → スキップ
+  { col: 17, field: 'arrived_qty',      label: '入荷本数' },
+  { col: 18, field: 'pending_qty',      label: '未入荷本数' },
+  { col: 19, field: 'pending_weight_kg',label: '未入荷重量(Kg)' },
+  { col: 20, field: 'note',             label: '備考' },
+];
+
+var pasteItems = [];
+
+function openPasteModal() {
+  if (!currentProjectId) { alert('物件を先に選択してください'); return; }
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('pasteStep1').style.display = 'block';
+  document.getElementById('pasteStep2').style.display = 'none';
+  pasteItems = [];
+  document.getElementById('pasteModal').classList.add('open');
+}
+
+function previewPaste() {
+  var text = document.getElementById('pasteArea').value;
+  if (!text.trim()) { alert('データを貼り付けてください'); return; }
+
+  var lines = text.split('\n');
+  pasteItems = [];
+
+  lines.forEach(function(line) {
+    if (!line.trim()) return;
+    var cols = line.split('\t');
+    var item = {};
+    PASTE_COL_MAP.forEach(function(m) {
+      var val = cols[m.col] !== undefined ? cols[m.col].trim() : '';
+      if (NUM_FIELDS.indexOf(m.field) !== -1) {
+        item[m.field] = val === '' ? null : Number(val);
+      } else {
+        item[m.field] = val || null;
+      }
+    });
+    // 全フィールドが空の行はスキップ
+    var hasVal = PASTE_COL_MAP.some(function(m) { return item[m.field] !== null && item[m.field] !== ''; });
+    if (!hasVal) return;
+    pasteItems.push(item);
+  });
+
+  if (pasteItems.length === 0) { alert('有効なデータが見つかりませんでした'); return; }
+
+  // プレビューテーブル生成
+  var thead = '<thead><tr>' + PASTE_COL_MAP.map(function(m) { return '<th>' + m.label + '</th>'; }).join('') + '</tr></thead>';
+  var tbody = '<tbody>' + pasteItems.map(function(item) {
+    return '<tr>' + PASTE_COL_MAP.map(function(m) {
+      var v = item[m.field];
+      return '<td>' + (v !== null && v !== undefined ? v : '') + '</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+
+  document.getElementById('pastePreviewTable').innerHTML = thead + tbody;
+  document.getElementById('pastePreviewCount').textContent = pasteItems.length + ' 行のデータを確認してください';
+  document.getElementById('pasteStep1').style.display = 'none';
+  document.getElementById('pasteStep2').style.display = 'block';
+}
+
+function backToPaste() {
+  document.getElementById('pasteStep1').style.display = 'block';
+  document.getElementById('pasteStep2').style.display = 'none';
+}
+
+async function registerPaste() {
+  if (!currentProjectId) { alert('物件を選択してください'); return; }
+  if (pasteItems.length === 0) { alert('登録するデータがありません'); return; }
+  try {
+    // mode を指定しない → 追記（既存データを消さない）
+    var res = await fetch('/api/order-items/bulk', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ project_id: currentProjectId, items: pasteItems })
+    });
+    if (res.ok) {
+      var result = await res.json();
+      closeModal('pasteModal');
+      loadOrderItems();
+      alert(result.count + ' 件登録しました');
+    } else {
+      var err = await res.json().catch(function(){return{};});
+      alert('登録失敗: ' + (err.error || '不明なエラー'));
+    }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
