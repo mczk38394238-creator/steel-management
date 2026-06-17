@@ -6,7 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// WebSocket問題を回避するためglobalに設定
 const WebSocket = require('ws');
 global.WebSocket = WebSocket;
 
@@ -15,57 +14,72 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// ===== 物件 =====
+
 app.get('/api/projects', async (req, res) => {
-  const { data, error } = await supabase.from('projects').select('*').eq('status', 'active').order('id', { ascending: true });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const { data, error } = await supabase
+    .from('projects').select('*').eq('status', 'active').order('id', { ascending: true });
+  if (error) { console.error('GET /api/projects:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
 });
 
 app.get('/api/projects/trash', async (req, res) => {
-  const { data, error } = await supabase.from('projects').select('*').eq('status', 'deleted').order('id', { ascending: true });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const { data, error } = await supabase
+    .from('projects').select('*').eq('status', 'deleted').order('id', { ascending: true });
+  if (error) { console.error('GET /api/projects/trash:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
 });
 
 app.post('/api/projects', async (req, res) => {
   const { data, error } = await supabase.from('projects').insert([req.body]).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data[0]);
+  if (error) { console.error('POST /api/projects:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data && data[0] ? data[0] : { success: true });
 });
 
 app.put('/api/projects/:id', async (req, res) => {
-  const { data, error } = await supabase.from('projects').update(req.body).eq('id', req.params.id).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data[0]);
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { data, error } = await supabase.from('projects').update(req.body).eq('id', id).select();
+  if (error) { console.error('PUT /api/projects/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data && data[0] ? data[0] : { success: true });
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
-  const { error } = await supabase.from('projects').delete().eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) { console.error('DELETE /api/projects/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
   res.json({ success: true });
 });
 
+// ===== 明細 =====
+
 app.get('/api/order-items/:projectId', async (req, res) => {
-  const { data, error } = await supabase.from('order_items').select('*').eq('project_id', req.params.projectId).order('tsushi_no', { ascending: true });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const { data, error } = await supabase
+    .from('order_items').select('*').eq('project_id', req.params.projectId).order('tsushi_no', { ascending: true });
+  if (error) { console.error('GET /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
 });
 
 app.post('/api/order-items', async (req, res) => {
   const { data, error } = await supabase.from('order_items').insert([req.body]).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data[0]);
+  if (error) { console.error('POST /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data && data[0] ? data[0] : { success: true });
 });
 
 app.put('/api/order-items/:id', async (req, res) => {
-  const { data, error } = await supabase.from('order_items').update(req.body).eq('id', req.params.id).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data[0]);
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { data, error } = await supabase.from('order_items').update(req.body).eq('id', id).select();
+  if (error) { console.error('PUT /api/order-items/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data && data[0] ? data[0] : { success: true });
 });
 
 app.delete('/api/order-items/:id', async (req, res) => {
-  const { error } = await supabase.from('order_items').delete().eq('id', req.params.id);
-  if (error) return res.status(500).json({ error: error.message });
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { error } = await supabase.from('order_items').delete().eq('id', id);
+  if (error) { console.error('DELETE /api/order-items/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
   res.json({ success: true });
 });
 

@@ -258,7 +258,10 @@ async function deleteProject(id, name) {
       body: JSON.stringify({ status: 'deleted' })
     });
     if (res.ok) { loadProjects(); }
-    else { alert('削除失敗'); }
+    else {
+      var err = await res.json().catch(function() { return {}; });
+      alert('削除失敗: ' + (err.error || 'ステータスコード ' + res.status));
+    }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
