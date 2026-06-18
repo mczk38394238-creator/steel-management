@@ -533,15 +533,30 @@ function renderOrderRows(data) {
   }).join('');
 }
 
-function populateFilters(data) {
+function getActiveFilters(excludeField) {
+  var selects = document.querySelectorAll('.filter-select');
+  var active = [];
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    var v = sel.value;
+    if (v !== '' && field !== excludeField) active.push({ field: field, value: v });
+  });
+  return active;
+}
+
+function updateFilterOptions() {
   var selects = document.querySelectorAll('.filter-select');
   selects.forEach(function(sel) {
     var field = sel.getAttribute('data-field');
     var prevValue = sel.value;
+    var others = getActiveFilters(field);
+    var subset = currentOrderItems.filter(function(d) {
+      return others.every(function(f) { return String(d[f.field]) === f.value; });
+    });
     var isNum = NUM_FIELDS.indexOf(field) !== -1;
     var values = [];
     var seen = {};
-    data.forEach(function(d) {
+    subset.forEach(function(d) {
       var v = d[field];
       if (v === null || v === undefined || v === '') return;
       var key = String(v);
@@ -561,17 +576,17 @@ function populateFilters(data) {
   });
 }
 
+function populateFilters(data) {
+  updateFilterOptions();
+}
+
 function applyFilters() {
-  var selects = document.querySelectorAll('.filter-select');
-  var active = [];
-  selects.forEach(function(sel) {
-    var v = sel.value;
-    if (v !== '') active.push({ field: sel.getAttribute('data-field'), value: v });
-  });
+  var active = getActiveFilters(null);
   var filtered = currentOrderItems.filter(function(d) {
     return active.every(function(f) { return String(d[f.field]) === f.value; });
   });
   renderOrderRows(filtered);
+  updateFilterOptions();
 }
 
 function updateHeaderHeight() {
