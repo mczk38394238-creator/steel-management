@@ -624,13 +624,13 @@ async function saveItem() {
     steel_type: document.getElementById('i_steel').value || null,
     size: document.getElementById('i_size').value || null,
     standard: document.getElementById('i_standard').value || null,
-    length_mm: document.getElementById('i_length').value ? parseFloat(document.getElementById('i_length').value) : null,
-    qty: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value) : null,
-    weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value) : null,
+    length_mm: document.getElementById('i_length').value ? parseFloat(document.getElementById('i_length').value.replace(/,/g,'')) : null,
+    qty: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value.replace(/,/g,'')) : null,
+    weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value.replace(/,/g,'')) : null,
     destination: document.getElementById('i_dest').value || null,
-    arrived_qty: parseInt(document.getElementById('i_arrived').value) || 0,
-    pending_qty: parseInt(document.getElementById('i_pending').value) || 0,
-    pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value) : null,
+    arrived_qty: parseInt(document.getElementById('i_arrived').value.replace(/,/g,'')) || 0,
+    pending_qty: parseInt(document.getElementById('i_pending').value.replace(/,/g,'')) || 0,
+    pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value.replace(/,/g,'')) : null,
     note: document.getElementById('i_note').value || null
   };
   var url = id ? '/api/order-items/' + id : '/api/order-items';
