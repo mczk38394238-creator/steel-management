@@ -66,6 +66,7 @@ th input[type="checkbox"] { vertical-align: middle; }
 .preview-table-wrap th { padding: 4px 6px; position: sticky; top: 0; }
 .preview-table-wrap td { padding: 3px 6px; }
 .inline-input { width: 100%; min-width: 60px; padding: 2px 4px; border: 2px solid #1a3a5c; border-radius: 2px; font-size: 13px; background: #fffde7; font-family: inherit; box-sizing: border-box; }
+body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { position: static !important; }
 </style>
 </head>
 <body>
@@ -595,6 +596,15 @@ function updateHeaderHeight() {
     document.documentElement.style.setProperty('--header-h', headerRow.offsetHeight + 'px');
   }
 }
+document.addEventListener('mousedown', function(e) {
+  if (e.target.closest('table')) {
+    document.body.classList.add('selecting');
+  }
+});
+document.addEventListener('mouseup', function() {
+  document.body.classList.remove('selecting');
+});
+
 window.addEventListener('load', updateHeaderHeight);
 window.addEventListener('resize', updateHeaderHeight);
 
