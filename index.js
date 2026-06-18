@@ -80,7 +80,7 @@ app.delete('/api/projects/:id', async (req, res) => {
 
 app.get('/api/order-items/:projectId', async (req, res) => {
   const { data, error } = await supabase
-    .from('order_items').select('*').eq('project_id', req.params.projectId).order('tsushi_no', { ascending: true });
+    .from('order_items').select('*').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
   if (error) { console.error('GET /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
   res.json(data || []);
 });
