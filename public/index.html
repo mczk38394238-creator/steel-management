@@ -698,7 +698,7 @@ function previewPaste() {
     PASTE_COL_MAP.forEach(function(m) {
       var val = cols[m.col] !== undefined ? cols[m.col].trim() : '';
       if (NUM_FIELDS.indexOf(m.field) !== -1) {
-        item[m.field] = val === '' ? null : Number(val);
+        item[m.field] = val === '' ? null : Number(val.replace(/,/g, ''));
       } else {
         item[m.field] = val || null;
       }
