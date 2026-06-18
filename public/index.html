@@ -48,9 +48,13 @@ tr.selected-row td { background: #fff3cd !important; }
 .project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .project-selector label { font-weight: bold; color: #333; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid #ddd; }
 .filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
-#filterRow td { background: #eef2f6; padding: 3px 4px; }
+.col-frozen { position: sticky; left: 0; }
+td.col-frozen { background: white; z-index: 3; }
+th.col-frozen { z-index: 6; }
+#filterRow td.col-frozen { z-index: 5; }
+#filterRow td { background: #eef2f6; padding: 3px 4px; position: sticky; top: var(--header-h, 37px); z-index: 4; }
 .arrived { color: #28a745; font-weight: bold; }
 .pending { color: #dc3545; font-weight: bold; }
 .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -126,13 +130,13 @@ th input[type="checkbox"] { vertical-align: middle; }
   <table>
     <thead>
     <tr>
-      <th>通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
+      <th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
       <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
     </tr>
     <tr id="filterRow">
-      <td><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="trading_company" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="maker" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="tentative_delivery" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
@@ -481,9 +485,10 @@ async function loadProjectSelector() {
 // 数値フィールド一覧
 var NUM_FIELDS = ['length_mm','quantity','weight_kg','arrived_qty','pending_qty','pending_weight_kg'];
 
-function ed(id, field, val) {
+function ed(id, field, val, extraClass) {
   var v = (val !== null && val !== undefined) ? String(val) : '';
-  return '<td class="editable" onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+  var cls = 'editable' + (extraClass ? ' ' + extraClass : '');
+  return '<td class="' + cls + '" onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
 }
 
 function edNum(id, field, val, cls) {
@@ -503,7 +508,7 @@ function renderOrderRows(data) {
   tbody.innerHTML = data.map(function(d) {
     var delivery = d.tentative_delivery || '';
     return '<tr>' +
-      ed(d.id, 'seq_no', d.seq_no) +
+      ed(d.id, 'seq_no', d.seq_no, 'col-frozen') +
       ed(d.id, 'trading_company', d.trading_company) +
       ed(d.id, 'maker', d.maker) +
       ed(d.id, 'tentative_delivery', delivery) +
@@ -568,6 +573,15 @@ function applyFilters() {
   });
   renderOrderRows(filtered);
 }
+
+function updateHeaderHeight() {
+  var headerRow = document.querySelector('#page-zaizai thead tr');
+  if (headerRow) {
+    document.documentElement.style.setProperty('--header-h', headerRow.offsetHeight + 'px');
+  }
+}
+window.addEventListener('load', updateHeaderHeight);
+window.addEventListener('resize', updateHeaderHeight);
 
 async function loadOrderItems() {
   var sel = document.getElementById('projectSelect');
