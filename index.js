@@ -44,12 +44,36 @@ app.put('/api/projects/:id', async (req, res) => {
   res.json(data && data[0] ? data[0] : { success: true });
 });
 
+// 物件に紐づく全関連テーブルを削除するヘルパー
+// 将来テーブルが増えたら RELATED_TABLES に追加するだけでOK
+const RELATED_TABLES = [
+  'order_items',
+  // 'arrival_records',   // 入荷管理（追加予定）
+  // 'mill_sheets',       // ミルシート（追加予定）
+  // 'invoices',          // 請求（追加予定）
+  // 'connections',       // 取合（追加予定）
+  // 'inventory',         // 在庫（追加予定）
+];
+
+async function deleteProjectCascade(projectId) {
+  for (const table of RELATED_TABLES) {
+    const { error } = await supabase.from(table).delete().eq('project_id', projectId);
+    if (error) throw new Error(table + ' の削除失敗: ' + error.message);
+  }
+}
+
 app.delete('/api/projects/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { error } = await supabase.from('projects').delete().eq('id', id);
-  if (error) { console.error('DELETE /api/projects/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  res.json({ success: true });
+  try {
+    await deleteProjectCascade(id);
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('DELETE /api/projects/' + id + ':', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ===== 明細 =====
