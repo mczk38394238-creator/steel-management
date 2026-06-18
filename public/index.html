@@ -49,6 +49,8 @@ tr.selected-row td { background: #fff3cd !important; }
 .project-selector label { font-weight: bold; color: #333; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
 .table-wrap { overflow-x: auto; }
+.filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
+#filterRow td { background: #eef2f6; padding: 3px 4px; }
 .arrived { color: #28a745; font-weight: bold; }
 .pending { color: #dc3545; font-weight: bold; }
 .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -122,12 +124,34 @@ th input[type="checkbox"] { vertical-align: middle; }
   </div>
   <div class="table-wrap">
   <table>
-    <thead><tr>
+    <thead>
+    <tr>
       <th>通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
       <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
-    </tr></thead>
+    </tr>
+    <tr id="filterRow">
+      <td><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="trading_company" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="maker" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="tentative_delivery" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="section" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="contract_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="steel_type" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="size" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="standard" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="length_mm" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="quantity" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="destination" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="arrived_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="pending_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="pending_weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="notes" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td></td>
+    </tr>
+    </thead>
     <tbody id="orderBody"></tbody>
   </table>
   </div>
@@ -468,6 +492,83 @@ function edNum(id, field, val, cls) {
   return '<td' + clsAttr + ' onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
 }
 
+var currentOrderItems = [];
+
+function renderOrderRows(data) {
+  var tbody = document.getElementById('orderBody');
+  if (!Array.isArray(data) || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(function(d) {
+    var delivery = d.tentative_delivery || '';
+    return '<tr>' +
+      ed(d.id, 'seq_no', d.seq_no) +
+      ed(d.id, 'trading_company', d.trading_company) +
+      ed(d.id, 'maker', d.maker) +
+      ed(d.id, 'tentative_delivery', delivery) +
+      ed(d.id, 'section', d.section) +
+      ed(d.id, 'contract_no', d.contract_no) +
+      ed(d.id, 'steel_type', d.steel_type) +
+      ed(d.id, 'size', d.size) +
+      ed(d.id, 'standard', d.standard) +
+      edNum(d.id, 'length_mm', d.length_mm, '') +
+      edNum(d.id, 'quantity', d.quantity, '') +
+      edNum(d.id, 'weight_kg', d.weight_kg, '') +
+      ed(d.id, 'destination', d.destination) +
+      edNum(d.id, 'arrived_qty', d.arrived_qty, 'arrived') +
+      edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
+      edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
+      ed(d.id, 'notes', d.notes) +
+      '<td>' +
+        '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
+        '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function populateFilters(data) {
+  var selects = document.querySelectorAll('.filter-select');
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    var prevValue = sel.value;
+    var isNum = NUM_FIELDS.indexOf(field) !== -1;
+    var values = [];
+    var seen = {};
+    data.forEach(function(d) {
+      var v = d[field];
+      if (v === null || v === undefined || v === '') return;
+      var key = String(v);
+      if (!seen[key]) { seen[key] = true; values.push(v); }
+    });
+    if (isNum) {
+      values.sort(function(a, b) { return Number(a) - Number(b); });
+    } else {
+      values.sort(function(a, b) { return String(a).localeCompare(String(b), 'ja'); });
+    }
+    var html = '<option value="">(すべて)</option>';
+    values.forEach(function(v) {
+      html += '<option value="' + String(v).replace(/"/g, '&quot;') + '">' + v + '</option>';
+    });
+    sel.innerHTML = html;
+    if (seen[prevValue]) sel.value = prevValue;
+  });
+}
+
+function applyFilters() {
+  var selects = document.querySelectorAll('.filter-select');
+  var active = [];
+  selects.forEach(function(sel) {
+    var v = sel.value;
+    if (v !== '') active.push({ field: sel.getAttribute('data-field'), value: v });
+  });
+  var filtered = currentOrderItems.filter(function(d) {
+    return active.every(function(f) { return String(d[f.field]) === f.value; });
+  });
+  renderOrderRows(filtered);
+}
+
 async function loadOrderItems() {
   var sel = document.getElementById('projectSelect');
   currentProjectId = sel.value;
@@ -475,6 +576,8 @@ async function loadOrderItems() {
   var pasteBtn = document.getElementById('pasteBtn');
   var tbody = document.getElementById('orderBody');
   if (!currentProjectId) {
+    currentOrderItems = [];
+    populateFilters([]);
     tbody.innerHTML = '';
     addBtn.style.display = 'none';
     pasteBtn.style.display = 'none';
@@ -485,36 +588,14 @@ async function loadOrderItems() {
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) {
+    if (!Array.isArray(data)) data = [];
+    currentOrderItems = data;
+    populateFilters(currentOrderItems);
+    if (data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
-    tbody.innerHTML = data.map(function(d) {
-      var delivery = d.tentative_delivery || '';
-      return '<tr>' +
-        ed(d.id, 'seq_no', d.seq_no) +
-        ed(d.id, 'trading_company', d.trading_company) +
-        ed(d.id, 'maker', d.maker) +
-        ed(d.id, 'tentative_delivery', delivery) +
-        ed(d.id, 'section', d.section) +
-        ed(d.id, 'contract_no', d.contract_no) +
-        ed(d.id, 'steel_type', d.steel_type) +
-        ed(d.id, 'size', d.size) +
-        ed(d.id, 'standard', d.standard) +
-        edNum(d.id, 'length_mm', d.length_mm, '') +
-        edNum(d.id, 'quantity', d.quantity, '') +
-        edNum(d.id, 'weight_kg', d.weight_kg, '') +
-        ed(d.id, 'destination', d.destination) +
-        edNum(d.id, 'arrived_qty', d.arrived_qty, 'arrived') +
-        edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
-        edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
-        ed(d.id, 'notes', d.notes) +
-        '<td>' +
-          '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
-          '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
-        '</td>' +
-      '</tr>';
-    }).join('');
+    applyFilters();
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
