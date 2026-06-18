@@ -652,30 +652,25 @@ async function deleteItem(id) {
 
 // ===== Excel貼り付け一括登録 =====
 
-// 21列の対応マッピング（0始まり）
-// スキップ列: 4(マスター工程使用時期), 7(証明書番号), 8(製鋼番号), 16(荷揃員数)
+// 17列の連番マッピング（0始まり）- 事前に17列に整形済みのExcelを貼り付ける運用
 var PASTE_COL_MAP = [
-  { col: 0,  field: 'tsushi_no',        label: '通しNo' },
-  { col: 1,  field: 'trading_company',  label: '商社' },
-  { col: 2,  field: 'maker',            label: 'メーカー' },
-  { col: 3,  field: 'tentative_delivery', label: '暫定納期' },
-  // 4: マスター工程使用時期 → スキップ
-  { col: 5,  field: 'section',          label: '工区・部位' },
-  { col: 6,  field: 'contract_no',      label: '契約No' },
-  // 7: 証明書番号 → スキップ
-  // 8: 製鋼番号 → スキップ
-  { col: 9,  field: 'steel_type',       label: '鋼種' },
-  { col: 10, field: 'size',             label: 'サイズ' },
-  { col: 11, field: 'standard',         label: '規格' },
-  { col: 12, field: 'length_mm',        label: '長さ(mm)' },
-  { col: 13, field: 'qty',              label: '員数' },
-  { col: 14, field: 'weight_kg',        label: '重量(Kg)' },
-  { col: 15, field: 'destination',      label: '向け先' },
-  // 16: 荷揃員数 → スキップ
-  { col: 17, field: 'arrived_qty',      label: '入荷本数' },
-  { col: 18, field: 'pending_qty',      label: '未入荷本数' },
-  { col: 19, field: 'pending_weight_kg',label: '未入荷重量(Kg)' },
-  { col: 20, field: 'note',             label: '備考' },
+  { col: 0,  field: 'tsushi_no',         label: '通しNo' },
+  { col: 1,  field: 'trading_company',   label: '商社' },
+  { col: 2,  field: 'maker',             label: 'メーカー' },
+  { col: 3,  field: 'tentative_delivery',label: '暫定納期' },
+  { col: 4,  field: 'section',           label: '工区部位' },
+  { col: 5,  field: 'contract_no',       label: '契約No' },
+  { col: 6,  field: 'steel_type',        label: '鋼種' },
+  { col: 7,  field: 'size',              label: 'サイズ' },
+  { col: 8,  field: 'standard',          label: '規格' },
+  { col: 9,  field: 'length_mm',         label: '長さ(mm)' },
+  { col: 10, field: 'qty',               label: '員数' },
+  { col: 11, field: 'weight_kg',         label: '重量(Kg)' },
+  { col: 12, field: 'destination',       label: '向け先' },
+  { col: 13, field: 'arrived_qty',       label: '入荷本数' },
+  { col: 14, field: 'pending_qty',       label: '未入荷本数' },
+  { col: 15, field: 'pending_weight_kg', label: '未入荷重量(Kg)' },
+  { col: 16, field: 'note',              label: '備考' },
 ];
 
 var pasteItems = [];
