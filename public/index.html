@@ -551,7 +551,7 @@ function makeEditable(td, id, field) {
     }
     var body = {};
     if (NUM_FIELDS.indexOf(field) !== -1) {
-      body[field] = newText === '' ? null : parseFloat(newText);
+      body[field] = newText === '' ? null : parseFloat(newText.replace(/,/g, ''));
     } else {
       body[field] = newText || null;
     }
