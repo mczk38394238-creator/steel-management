@@ -50,10 +50,14 @@ tr.selected-row td { background: #fff3cd !important; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
 .table-wrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid #ddd; }
 .filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
-.col-frozen { position: sticky; left: 0; }
+.col-frozen { position: sticky; left: 36px; }
 td.col-frozen { background: white; z-index: 3; }
 th.col-frozen { z-index: 6; }
 #filterRow td.col-frozen { z-index: 5; }
+.col-check { position: sticky; left: 0; width: 36px; text-align: center; }
+td.col-check { background: white; z-index: 3; }
+th.col-check { z-index: 6; }
+#filterRow td.col-check { z-index: 5; background: #eef2f6; }
 #filterRow td { background: #eef2f6; padding: 3px 4px; position: sticky; top: var(--header-h, 37px); z-index: 4; }
 .arrived { color: #28a745; font-weight: bold; }
 .pending { color: #dc3545; font-weight: bold; }
@@ -126,18 +130,19 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     </select>
     <button class="btn btn-primary" onclick="openAddItemModal()" id="addItemBtn" style="display:none">＋ 明細追加</button>
     <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
+    <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
   </div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
-      <th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
+      <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th><th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
       <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
     </tr>
     <tr id="filterRow">
-      <td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td class="col-check"></td><td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="trading_company" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="maker" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="tentative_delivery" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
@@ -503,12 +508,13 @@ var currentOrderItems = [];
 function renderOrderRows(data) {
   var tbody = document.getElementById('orderBody');
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(function(d) {
     var delivery = d.tentative_delivery || '';
     return '<tr>' +
+      '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"></td>' +
       ed(d.id, 'seq_no', d.seq_no, 'col-frozen') +
       ed(d.id, 'trading_company', d.trading_company) +
       ed(d.id, 'maker', d.maker) +
@@ -532,6 +538,28 @@ function renderOrderRows(data) {
       '</td>' +
     '</tr>';
   }).join('');
+}
+
+function toggleSelectAll(checkbox) {
+  document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checkbox.checked; });
+}
+
+function copySelectedRows() {
+  var checked = document.querySelectorAll('.row-check:checked');
+  if (checked.length === 0) { alert('コピーする行を選んでください'); return; }
+  var ids = Array.prototype.map.call(checked, function(cb) { return Number(cb.getAttribute('data-id')); });
+  var rows = ids.map(function(id) { return currentOrderItems.find(function(d) { return d.id === id; }); }).filter(Boolean);
+  var text = rows.map(function(d) {
+    return PASTE_COL_MAP.map(function(m) {
+      var v = d[m.field];
+      return (v === null || v === undefined) ? '' : String(v);
+    }).join('\t');
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    alert(rows.length + '行をコピーしました');
+  }).catch(function() {
+    alert('コピーに失敗しました。お使いのブラウザがクリップボード機能に対応していない可能性があります。');
+  });
 }
 
 function getActiveFilters(excludeField) {
@@ -620,10 +648,12 @@ async function loadOrderItems() {
     tbody.innerHTML = '';
     addBtn.style.display = 'none';
     pasteBtn.style.display = 'none';
+    document.getElementById('copySelectedBtn').style.display = 'none';
     return;
   }
   addBtn.style.display = 'inline-block';
   pasteBtn.style.display = 'inline-block';
+  document.getElementById('copySelectedBtn').style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
@@ -631,12 +661,12 @@ async function loadOrderItems() {
     currentOrderItems = data;
     populateFilters(currentOrderItems);
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
     applyFilters();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
