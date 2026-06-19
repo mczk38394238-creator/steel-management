@@ -246,6 +246,150 @@ app.delete('/api/arrival-schedules-all', async (req, res) => {
   res.json({ success: true });
 });
 
+// ===== 引取り計画の自動割り振り =====
+
+// 固定の連休カレンダー（月日のみで判定。年は問わない）
+// [開始月, 開始日, 終了月, 終了日]
+const FIXED_HOLIDAY_RANGES = [
+  [4, 29, 5, 5],   // ゴールデンウィーク
+  [8, 13, 8, 16],  // お盆
+  [12, 29, 12, 31], // 年末
+  [1, 1, 1, 3],     // 年始
+];
+
+function isHolidayDate(date) {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  return FIXED_HOLIDAY_RANGES.some(([sm, sd, em, ed]) => {
+    if (sm === em) return m === sm && d >= sd && d <= ed;
+    // 月をまたぐ範囲（年末年始は使わないが念のため対応）
+    if (sm < em) return (m === sm && d >= sd) || (m === em && d <= ed) || (m > sm && m < em);
+    return false;
+  });
+}
+
+function toDateOnly(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(date, days) {
+  const r = new Date(date);
+  r.setDate(r.getDate() + days);
+  return r;
+}
+
+function formatMD(date) {
+  return (date.getMonth() + 1) + '/' + date.getDate();
+}
+
+// 今日から指定の締切日までの「稼働週（月～金で稼働日が2日以上ある週）」一覧を作る
+function buildWorkingWeeks(today, deadline) {
+  const start = toDateOnly(today);
+  const end = toDateOnly(deadline);
+  // 今週の月曜日を求める
+  const dow = start.getDay(); // 0=日,1=月,...6=土
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  let monday = addDays(start, mondayOffset);
+  const weeks = [];
+  while (monday <= end) {
+    const friday = addDays(monday, 4);
+    let workDays = 0;
+    for (let i = 0; i < 5; i++) {
+      const day = addDays(monday, i);
+      if (day < start) continue; // 今日より前の日は数えない
+      if (day > end) continue;
+      if (!isHolidayDate(day)) workDays++;
+    }
+    if (workDays >= 2) {
+      weeks.push({ start: monday, end: friday, label: formatMD(monday) + '～' + formatMD(friday) });
+    }
+    monday = addDays(monday, 7);
+  }
+  return weeks;
+}
+
+// 入荷予定日が未入力（まだ出荷案内が来ていない）行に、引取り時期を自動で割り振る
+app.post('/api/arrival-schedules/calculate-plan', async (req, res) => {
+  const { deadline } = req.body;
+  if (!deadline) return res.status(400).json({ error: '締切日が指定されていません' });
+  try {
+    const { data: all, error } = await supabase
+      .from('arrival_schedules').select('*, order_items(*)').order('id', { ascending: true });
+    if (error) throw new Error(error.message);
+
+    // order_item_id ごとにグループ化し、「まだ案内が来ていない分」の重量を計算する
+    const groups = {};
+    for (const row of all) {
+      const oid = row.order_item_id;
+      if (!groups[oid]) groups[oid] = { orderItem: row.order_items, rows: [] };
+      groups[oid].rows.push(row);
+    }
+
+    const assignments = []; // { scheduleId, weight }
+    for (const oid in groups) {
+      const g = groups[oid];
+      const oi = g.orderItem;
+      if (!oi || !oi.quantity) continue;
+      const notifiedQty = g.rows
+        .filter(r => r.arrival_date)
+        .reduce((sum, r) => sum + (Number(r.arrival_qty) || 0), 0);
+      const pendingRows = g.rows.filter(r => !r.arrival_date).sort((a, b) => a.id - b.id);
+      if (pendingRows.length === 0) continue;
+      const remainingQty = Math.max(0, Number(oi.quantity) - notifiedQty);
+      if (remainingQty <= 0) continue;
+      const remainingWeight = (Number(oi.weight_kg) || 0) * (remainingQty / Number(oi.quantity));
+      assignments.push({ scheduleId: pendingRows[0].id, weight: remainingWeight });
+    }
+
+    if (assignments.length === 0) {
+      return res.json({ success: true, updatedCount: 0, message: '対象となる行がありませんでした（すべて入荷予定日が入力済みです）' });
+    }
+
+    assignments.sort((a, b) => a.scheduleId - b.scheduleId);
+
+    const today = new Date();
+    const deadlineDate = new Date(deadline + 'T00:00:00');
+    const weeks = buildWorkingWeeks(today, deadlineDate);
+    if (weeks.length === 0) {
+      return res.status(400).json({ error: '指定された期間内に、稼働できる週がありませんでした' });
+    }
+
+    const totalWeight = assignments.reduce((sum, a) => sum + a.weight, 0);
+    const weeklyTarget = totalWeight / weeks.length;
+
+    // 週ごとに目標重量に達するまで順番に詰めていく
+    let weekIndex = 0;
+    let currentWeekTotal = 0;
+    for (const a of assignments) {
+      if (currentWeekTotal > 0 && (currentWeekTotal + a.weight) > weeklyTarget && weekIndex < weeks.length - 1) {
+        weekIndex++;
+        currentWeekTotal = 0;
+      }
+      a.weekLabel = weeks[weekIndex].label;
+      currentWeekTotal += a.weight;
+    }
+
+    // 1件ずつ更新する
+    let updatedCount = 0;
+    for (const a of assignments) {
+      const { error: updateError } = await supabase
+        .from('arrival_schedules').update({ pickup_period: a.weekLabel }).eq('id', a.scheduleId);
+      if (!updateError) updatedCount++;
+    }
+
+    res.json({
+      success: true,
+      updatedCount: updatedCount,
+      totalWeight: Math.round(totalWeight),
+      weeksCount: weeks.length,
+      weeklyTarget: Math.round(weeklyTarget),
+    });
+  } catch (e) {
+    console.error('POST /api/arrival-schedules/calculate-plan:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

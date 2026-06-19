@@ -142,7 +142,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <tr>
       <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th><th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
-      <th>員数</th><th>重量</th><th>向け先</th><th>入荷本数</th><th>未入荷本数</th>
+      <th>員数</th><th>重量</th><th>向け先</th><th>受入ヤード</th><th>入荷本数</th><th>未入荷本数</th>
       <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
     </tr>
     <tr id="filterRow">
@@ -159,6 +159,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <td><select class="filter-select" data-field="quantity" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="destination" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="yard" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="arrived_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="pending_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="pending_weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
@@ -179,6 +180,12 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
+  <div class="toolbar" style="background:#eef2f6;padding:10px 12px;border-radius:6px;">
+    <label style="font-weight:bold;font-size:13px;">📅 引取り計画の自動割り振り：いつまでに受け入れるか</label>
+    <input type="date" id="planDeadlineInput" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+    <button class="btn btn-primary" onclick="calculateArrivalPlan()">計算して「引取り時期」に書き込む</button>
+    <span id="planResultText" style="font-size:13px;color:#1a3a5c;font-weight:bold;"></span>
+  </div>
   <div class="table-wrap">
   <table>
     <thead>
@@ -186,11 +193,11 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
-      <th>出荷依頼済</th><th>指示書</th><th>運送会社</th><th>操作</th>
+      <th>出荷依頼済</th><th>指示書</th><th>受入ヤード</th><th>運送会社</th><th>操作</th>
     </tr>
     </thead>
     <tbody id="arrivalBody">
-      <tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+      <tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
     </tbody>
   </table>
   </div>
@@ -249,10 +256,16 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   </div>
   <div class="form-row">
     <div class="form-group"><label>向け先</label><input id="i_dest" type="text"></div>
+    <div class="form-group"><label>受入ヤード</label>
+      <select id="i_yard">
+        <option value="B棟">B棟</option>
+        <option value="D棟">D棟</option>
+      </select>
+    </div>
     <div class="form-group"><label>入荷本数</label><input id="i_arrived" type="text" value="0"></div>
-    <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
   </div>
   <div class="form-row">
+    <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
     <div class="form-group"><label>未入荷重量(Kg)</label><input id="i_pending_weight" type="text" value="0"></div>
     <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
   </div>
@@ -533,6 +546,26 @@ function edNum(id, field, val, cls) {
   return '<td' + clsAttr + ' onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
 }
 
+// 受入ヤード（B棟／D棟）：クリックで切り替える
+function yardCell(d) {
+  var yard = d.yard || 'B棟';
+  var isD = yard === 'D棟';
+  var style = isD ? 'color:#fff;background:#dc3545;font-weight:bold;cursor:pointer;text-align:center;' : 'cursor:pointer;text-align:center;color:#555;';
+  var next = isD ? 'B棟' : 'D棟';
+  return '<td onclick="toggleYard(' + d.id + ',\'' + next + '\')" style="' + style + '">' + yard + '</td>';
+}
+
+async function toggleYard(id, newValue) {
+  try {
+    var res = await fetch('/api/order-items/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yard: newValue })
+    });
+    if (res.ok) { loadOrderItems(); } else { alert('更新に失敗しました'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
 var currentOrderItems = [];
 
 // 選択中の明細ID（フィルターを切り替えても消えないように、画面の外側で覚えておく）
@@ -566,7 +599,7 @@ function clearRowSelection() {
 function renderOrderRows(data) {
   var tbody = document.getElementById('orderBody');
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(function(d) {
@@ -587,6 +620,7 @@ function renderOrderRows(data) {
       edNum(d.id, 'quantity', d.quantity, '') +
       edNum(d.id, 'weight_kg', d.weight_kg, '') +
       ed(d.id, 'destination', d.destination) +
+      yardCell(d) +
       edNum(d.id, 'arrived_qty', d.arrived_qty, 'arrived') +
       edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
       edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
@@ -756,12 +790,12 @@ async function loadOrderItems() {
     currentOrderItems = data;
     populateFilters(currentOrderItems);
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
     applyFilters();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
@@ -830,6 +864,7 @@ function openAddItemModal() {
   document.getElementById('i_arrived').value = '0';
   document.getElementById('i_pending').value = '0';
   document.getElementById('i_pending_weight').value = '0';
+  document.getElementById('i_yard').value = 'B棟';
   document.getElementById('addItemModal').classList.add('open');
 }
 
@@ -849,6 +884,7 @@ function openEditItemModal(d) {
   document.getElementById('i_qty').value = d.quantity !== null && d.quantity !== undefined ? d.quantity : '';
   document.getElementById('i_weight').value = d.weight_kg !== null && d.weight_kg !== undefined ? d.weight_kg : '';
   document.getElementById('i_dest').value = d.destination || '';
+  document.getElementById('i_yard').value = d.yard || 'B棟';
   document.getElementById('i_arrived').value = d.arrived_qty !== null && d.arrived_qty !== undefined ? d.arrived_qty : 0;
   document.getElementById('i_pending').value = d.pending_qty !== null && d.pending_qty !== undefined ? d.pending_qty : 0;
   document.getElementById('i_pending_weight').value = d.pending_weight_kg !== null && d.pending_weight_kg !== undefined ? d.pending_weight_kg : 0;
@@ -873,6 +909,7 @@ async function saveItem() {
     quantity: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value.replace(/,/g,'')) : null,
     weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value.replace(/,/g,'')) : null,
     destination: document.getElementById('i_dest').value || null,
+    yard: document.getElementById('i_yard').value || 'B棟',
     arrived_qty: parseInt(document.getElementById('i_arrived').value.replace(/,/g,'')) || 0,
     pending_qty: parseInt(document.getElementById('i_pending').value.replace(/,/g,'')) || 0,
     pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value.replace(/,/g,'')) : null,
@@ -1011,10 +1048,18 @@ function plainCell(text, blank) {
   return '<td>' + (blank ? '' : (text || '')) + '</td>';
 }
 
+// 受入ヤードの表示（D棟は目立つ表示にする）
+function yardDisplayCell(yard, blank) {
+  if (blank) return '<td></td>';
+  var v = yard || 'B棟';
+  if (v === 'D棟') return '<td style="color:#fff;background:#dc3545;font-weight:bold;text-align:center;">D棟</td>';
+  return '<td style="text-align:center;color:#555;">' + v + '</td>';
+}
+
 function renderArrivalRows(data) {
   var tbody = document.getElementById('arrivalBody');
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
   }
   // 同じ契約（order_item_id）の分納行をまとめて表示するため、order_item_id順に並べ替える
@@ -1046,6 +1091,7 @@ function renderArrivalRows(data) {
       plainCell(oi.quantity, isSplitRow) +
       arrivalEd(d.id, 'shipping_requested_date', d.shipping_requested_date) +
       '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
+      yardDisplayCell(oi.yard, isSplitRow) +
       arrivalEd(d.id, 'shipping_company', isSplitRow ? '' : d.shipping_company) +
       '<td>' +
         '<button class="btn btn-secondary" onclick="splitArrivalRow(' + d.id + ')">＋分納</button> ' +
@@ -1058,7 +1104,7 @@ function renderArrivalRows(data) {
 
 async function loadArrivalSchedules() {
   var tbody = document.getElementById('arrivalBody');
-  tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
   try {
     var res = await fetch('/api/arrival-schedules');
     var data = await res.json();
@@ -1067,7 +1113,7 @@ async function loadArrivalSchedules() {
     renderArrivalRows(data);
     document.getElementById('arrivalSearchInput').value = '';
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
@@ -1232,6 +1278,36 @@ async function deleteAllArrivalRows() {
     var res = await fetch('/api/arrival-schedules-all', { method: 'DELETE' });
     if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function calculateArrivalPlan() {
+  var deadline = document.getElementById('planDeadlineInput').value;
+  if (!deadline) { alert('「いつまでに受け入れるか」の日付を指定してください'); return; }
+  if (!confirm('入荷予定日が未入力の行に、引取り時期を自動で割り振ります。\n既存の「引取り時期」は上書きされます。よろしいですか？')) return;
+  var resultEl = document.getElementById('planResultText');
+  resultEl.textContent = '計算中...';
+  try {
+    var res = await fetch('/api/arrival-schedules/calculate-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deadline: deadline })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      if (result.updatedCount === 0) {
+        resultEl.textContent = result.message || '対象データがありませんでした';
+      } else {
+        resultEl.textContent = '合計' + result.totalWeight + 'Kg を ' + result.weeksCount + '週に割り振りました（1週あたり目安：約' + result.weeklyTarget + 'Kg）';
+      }
+      loadArrivalSchedules();
+    } else {
+      resultEl.textContent = '';
+      alert('計算に失敗しました: ' + (result.error || ''));
+    }
+  } catch (e) {
+    resultEl.textContent = '';
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 // 起動時に物件一覧を読み込む
