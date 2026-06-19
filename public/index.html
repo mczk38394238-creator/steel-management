@@ -174,15 +174,16 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <h2>入荷管理画面</h2>
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
+    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
+      <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
-      <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
       <th>出荷依頼済</th><th>指示書</th><th>運送会社</th><th>操作</th>
     </tr>
     </thead>
@@ -962,38 +963,53 @@ function arrivalEd(id, field, val, isDate) {
   return '<td class="editable" onclick="makeArrivalEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
 }
 
+// プレーンな（編集不可の）セル。blank=trueなら空欄で表示する
+function plainCell(text, blank) {
+  return '<td>' + (blank ? '' : (text || '')) + '</td>';
+}
+
 function renderArrivalRows(data) {
   var tbody = document.getElementById('arrivalBody');
   if (!Array.isArray(data) || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
   }
-  tbody.innerHTML = data.map(function(d) {
+  // 同じ契約（order_item_id）の分納行をまとめて表示するため、order_item_id順に並べ替える
+  var sorted = data.slice().sort(function(a, b) {
+    if (a.order_item_id !== b.order_item_id) return a.order_item_id - b.order_item_id;
+    return a.id - b.id;
+  });
+  var prevOrderItemId = null;
+  tbody.innerHTML = sorted.map(function(d) {
     var oi = d.order_items || {};
     var projectName = (oi.projects && oi.projects.project_name) || '';
     var instructionChecked = d.instruction_done ? '済' : '未';
     var instructionStyle = d.instruction_done ? 'color:#28a745;font-weight:bold;cursor:pointer;' : 'color:#dc3545;font-weight:bold;cursor:pointer;';
-    return '<tr>' +
-      '<td>' + projectName + '</td>' +
-      '<td>' + (oi.seq_no || '') + '</td>' +
-      '<td>' + (oi.trading_company || '') + '</td>' +
-      '<td>' + (oi.maker || '') + '</td>' +
-      '<td>' + (oi.section || '') + '</td>' +
-      '<td>' + (d.contract_no || '') + '</td>' +
-      '<td>' + (oi.steel_type || '') + '</td>' +
-      '<td>' + (oi.size || '') + '</td>' +
-      '<td>' + (oi.quantity || '') + '</td>' +
-      arrivalEd(d.id, 'pickup_period', d.pickup_period) +
+    // 同じ契約の2行目以降（分納行）は、共通項目を空欄にして見やすくする
+    var isSplitRow = (prevOrderItemId !== null && prevOrderItemId === d.order_item_id);
+    prevOrderItemId = d.order_item_id;
+    var html = '<tr data-contract="' + (d.contract_no || '').toLowerCase() + '">' +
+      arrivalEd(d.id, 'pickup_period', isSplitRow ? '' : d.pickup_period) +
       arrivalEd(d.id, 'arrival_date', d.arrival_date) +
       arrivalEd(d.id, 'arrival_qty', d.arrival_qty) +
+      plainCell(projectName, isSplitRow) +
+      plainCell(oi.seq_no, isSplitRow) +
+      plainCell(oi.trading_company, isSplitRow) +
+      plainCell(oi.maker, isSplitRow) +
+      plainCell(oi.section, isSplitRow) +
+      plainCell(d.contract_no, isSplitRow) +
+      plainCell(oi.steel_type, isSplitRow) +
+      plainCell(oi.size, isSplitRow) +
+      plainCell(oi.quantity, isSplitRow) +
       arrivalEd(d.id, 'shipping_requested_date', d.shipping_requested_date) +
       '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
-      arrivalEd(d.id, 'shipping_company', d.shipping_company) +
+      arrivalEd(d.id, 'shipping_company', isSplitRow ? '' : d.shipping_company) +
       '<td>' +
         '<button class="btn btn-secondary" onclick="splitArrivalRow(' + d.id + ')">＋分納</button> ' +
         '<button class="btn btn-danger" onclick="deleteArrivalRow(' + d.id + ')">削除</button>' +
       '</td>' +
     '</tr>';
+    return html;
   }).join('');
 }
 
@@ -1006,9 +1022,23 @@ async function loadArrivalSchedules() {
     if (!Array.isArray(data)) data = [];
     currentArrivalSchedules = data;
     renderArrivalRows(data);
+    document.getElementById('arrivalSearchInput').value = '';
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
+}
+
+// 契約Noで絞り込む（部分一致・大文字小文字を区別しない）
+function filterArrivalRows() {
+  var keyword = document.getElementById('arrivalSearchInput').value.trim().toLowerCase();
+  if (keyword === '') {
+    renderArrivalRows(currentArrivalSchedules);
+    return;
+  }
+  var filtered = currentArrivalSchedules.filter(function(d) {
+    return (d.contract_no || '').toLowerCase().indexOf(keyword) !== -1;
+  });
+  renderArrivalRows(filtered);
 }
 
 // 日付の入力欄（年を省略して「7/14」のように書いても自動で年を補う）
