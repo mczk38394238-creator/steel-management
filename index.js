@@ -121,11 +121,11 @@ app.post('/api/order-items/bulk', async (req, res) => {
 
 // ===== 入荷管理 =====
 
-// 入荷予定を全件取得する窓口（全物件横断・発注明細の情報も一緒に取得）
+// 入荷予定を全件取得する窓口（全物件横断・発注明細と物件情報も一緒に取得）
 app.get('/api/arrival-schedules', async (req, res) => {
   const { data, error } = await supabase
     .from('arrival_schedules')
-    .select('*, order_items(*)')
+    .select('*, order_items(*, projects(project_name))')
     .order('id', { ascending: true });
   if (error) { console.error('GET /api/arrival-schedules:', error.message); return res.status(500).json({ error: error.message }); }
   res.json(data || []);
@@ -137,6 +137,68 @@ app.get('/api/carriers-master', async (req, res) => {
     .from('carriers_master').select('*').order('id', { ascending: true });
   if (error) { console.error('GET /api/carriers-master:', error.message); return res.status(500).json({ error: error.message }); }
   res.json(data || []);
+});
+
+// メーカー名・契約Noから運送会社を自動判定するヘルパー
+async function resolveCarrier(maker, contractNo) {
+  if (!maker) return null;
+  // 東京製鉄は契約Noの末尾でミルが変わる特殊ルール
+  if (maker.indexOf('東京製鉄') !== -1) {
+    const c = contractNo || '';
+    if (c.indexOf('宇') !== -1) return '宇都宮';
+    if (c.indexOf('12号') !== -1) return '12号地';
+    return null;
+  }
+  const { data, error } = await supabase
+    .from('carriers_master').select('default_carrier').eq('maker_name', maker).maybeSingle();
+  if (error || !data) return null;
+  return data.default_carrier;
+}
+
+// 発注明細の行を選んで「入荷管理に追加」する窓口
+// order_item_ids（配列）を受け取り、それぞれに対応する入荷管理の行を1件ずつ作成する
+app.post('/api/arrival-schedules', async (req, res) => {
+  const { order_item_ids } = req.body;
+  if (!Array.isArray(order_item_ids) || order_item_ids.length === 0) {
+    return res.status(400).json({ error: '対象の明細が選択されていません' });
+  }
+  try {
+    const { data: items, error: itemsError } = await supabase
+      .from('order_items').select('*').in('id', order_item_ids);
+    if (itemsError) throw new Error(itemsError.message);
+
+    const rows = [];
+    for (const item of items) {
+      const carrier = await resolveCarrier(item.maker, item.contract_no);
+      rows.push({
+        order_item_id: item.id,
+        contract_no: item.contract_no,
+        shipping_company: carrier,
+      });
+    }
+    const { data, error } = await supabase.from('arrival_schedules').insert(rows).select();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, count: data.length });
+  } catch (e) {
+    console.error('POST /api/arrival-schedules:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/arrival-schedules/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { data, error } = await supabase.from('arrival_schedules').update(req.body).eq('id', id).select();
+  if (error) { console.error('PUT /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data && data[0] ? data[0] : { success: true });
+});
+
+app.delete('/api/arrival-schedules/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  const { error } = await supabase.from('arrival_schedules').delete().eq('id', id);
+  if (error) { console.error('DELETE /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  res.json({ success: true });
 });
 
 app.get('/', (req, res) => {

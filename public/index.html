@@ -132,6 +132,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-primary" onclick="openAddItemModal()" id="addItemBtn" style="display:none">＋ 明細追加</button>
     <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
+    <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
   </div>
   <div class="table-wrap">
   <table>
@@ -171,19 +172,19 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 <!-- 入荷管理 -->
 <div id="page-arrival" class="page">
   <h2>入荷管理画面</h2>
-  <div class="note">※ 全物件を横断して表示します。発注明細画面で行を選び「入荷管理に追加」すると、ここに表示されます。(この機能は次回実装予定です)</div>
+  <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。</div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
-      <th>入荷予定(日付・本数)</th><th>引取り時期</th><th>出荷依頼済</th>
+      <th>入荷予定日</th><th>入荷予定本数</th><th>引取り時期</th><th>出荷依頼済</th>
       <th>指示書</th><th>運送会社</th><th>操作</th>
     </tr>
     </thead>
     <tbody id="arrivalBody">
-      <tr><td colspan="14" style="text-align:center;color:#999;padding:20px;">準備中です(次回、データの表示機能を実装します)</td></tr>
+      <tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
     </tbody>
   </table>
   </div>
@@ -297,6 +298,7 @@ function showPage(page, btn) {
   if (btn) btn.classList.add('active');
   if (page === 'zaizai') loadProjectSelector();
   if (page === 'trash') loadTrash();
+  if (page === 'arrival') loadArrivalSchedules();
 }
 
 function closeModal(id) {
@@ -584,6 +586,28 @@ function copySelectedRows() {
   });
 }
 
+async function addSelectedToArrival() {
+  var checked = document.querySelectorAll('.row-check:checked');
+  if (checked.length === 0) { alert('入荷管理に追加する行を選んでください'); return; }
+  var ids = Array.prototype.map.call(checked, function(cb) { return Number(cb.getAttribute('data-id')); });
+  if (!confirm(ids.length + '件を入荷管理に追加しますか？')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_item_ids: ids })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      alert(result.count + '件を入荷管理に追加しました。「入荷管理」タブで確認できます。');
+    } else {
+      alert('追加に失敗しました: ' + (result.error || ''));
+    }
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
+}
+
 function getActiveFilters(excludeField) {
   var selects = document.querySelectorAll('.filter-select');
   var active = [];
@@ -671,11 +695,13 @@ async function loadOrderItems() {
     addBtn.style.display = 'none';
     pasteBtn.style.display = 'none';
     document.getElementById('copySelectedBtn').style.display = 'none';
+    document.getElementById('addToArrivalBtn').style.display = 'none';
     return;
   }
   addBtn.style.display = 'inline-block';
   pasteBtn.style.display = 'inline-block';
   document.getElementById('copySelectedBtn').style.display = 'inline-block';
+  document.getElementById('addToArrivalBtn').style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
@@ -922,6 +948,132 @@ async function registerPaste() {
       var err = await res.json().catch(function(){return{};});
       alert('登録失敗: ' + (err.error || '不明なエラー'));
     }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ===== 入荷管理 =====
+var currentArrivalSchedules = [];
+
+function arrivalEd(id, field, val, isDate) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  return '<td class="editable" onclick="makeArrivalEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
+
+function renderArrivalRows(data) {
+  var tbody = document.getElementById('arrivalBody');
+  if (!Array.isArray(data) || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(function(d) {
+    var oi = d.order_items || {};
+    var projectName = (oi.projects && oi.projects.project_name) || '';
+    var instructionChecked = d.instruction_done ? '済' : '未';
+    var instructionStyle = d.instruction_done ? 'color:#28a745;font-weight:bold;cursor:pointer;' : 'color:#dc3545;font-weight:bold;cursor:pointer;';
+    return '<tr>' +
+      '<td>' + projectName + '</td>' +
+      '<td>' + (oi.seq_no || '') + '</td>' +
+      '<td>' + (oi.trading_company || '') + '</td>' +
+      '<td>' + (oi.maker || '') + '</td>' +
+      '<td>' + (oi.section || '') + '</td>' +
+      '<td>' + (d.contract_no || '') + '</td>' +
+      '<td>' + (oi.steel_type || '') + '</td>' +
+      '<td>' + (oi.size || '') + '</td>' +
+      '<td>' + (oi.quantity || '') + '</td>' +
+      arrivalEd(d.id, 'arrival_date', d.arrival_date) +
+      arrivalEd(d.id, 'arrival_qty', d.arrival_qty) +
+      arrivalEd(d.id, 'pickup_period', d.pickup_period) +
+      arrivalEd(d.id, 'shipping_requested_date', d.shipping_requested_date) +
+      '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
+      arrivalEd(d.id, 'shipping_company', d.shipping_company) +
+      '<td><button class="btn btn-danger" onclick="deleteArrivalRow(' + d.id + ')">削除</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function loadArrivalSchedules() {
+  var tbody = document.getElementById('arrivalBody');
+  tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  try {
+    var res = await fetch('/api/arrival-schedules');
+    var data = await res.json();
+    if (!Array.isArray(data)) data = [];
+    currentArrivalSchedules = data;
+    renderArrivalRows(data);
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+  }
+}
+
+function makeArrivalEditable(td, id, field) {
+  if (td.querySelector('input')) return;
+  var originalText = td.textContent.trim();
+  var input = document.createElement('input');
+  input.className = 'inline-input';
+  input.type = 'text';
+  input.value = originalText;
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  var action = 'save';
+  var done = false;
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { action = 'cancel'; input.blur(); }
+  });
+
+  input.addEventListener('blur', async function() {
+    if (done) return;
+    done = true;
+    var newText = input.value.trim();
+    if (action === 'cancel' || newText === originalText) {
+      td.textContent = originalText;
+      return;
+    }
+    var body = {};
+    body[field] = newText === '' ? null : newText;
+    try {
+      var res = await fetch('/api/arrival-schedules/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        td.textContent = newText;
+      } else {
+        td.textContent = originalText;
+        alert('更新に失敗しました');
+      }
+    } catch (e) {
+      td.textContent = originalText;
+      alert('通信エラー: ' + e.message);
+    }
+  });
+}
+
+async function toggleInstruction(id, newValue) {
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruction_done: newValue })
+    });
+    if (res.ok) {
+      loadArrivalSchedules();
+    } else {
+      alert('更新に失敗しました');
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteArrivalRow(id) {
+  if (!confirm('この入荷予定行を削除しますか？')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id, { method: 'DELETE' });
+    if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
