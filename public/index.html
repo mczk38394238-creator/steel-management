@@ -134,6 +134,8 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
     <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
     <button class="btn btn-secondary" onclick="clearRowSelection()" id="clearSelectionBtn" style="display:none">選択解除</button>
+    <button class="btn btn-danger" onclick="setSelectedYard('D棟')" id="setYardDBtn" style="display:none">🏭 選択行をD棟に変更</button>
+    <button class="btn btn-secondary" onclick="setSelectedYard('B棟')" id="setYardBBtn" style="display:none">🏭 選択行をB棟に変更</button>
     <span id="selectedCountBadge" class="badge-count" style="display:none"></span>
   </div>
   <div class="table-wrap">
@@ -192,8 +194,8 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <tr>
       <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
-      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
-      <th>出荷依頼済</th><th>指示書</th><th>受入ヤード</th><th>運送会社</th><th>操作</th>
+      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th><th>重量(Kg)</th>
+      <th>指示書</th><th>受入ヤード</th><th>運送会社</th><th>操作</th>
     </tr>
     </thead>
     <tbody id="arrivalBody">
@@ -660,6 +662,25 @@ function copySelectedRows() {
   });
 }
 
+async function setSelectedYard(yardValue) {
+  if (selectedOrderItemIds.size === 0) { alert('変更する行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
+  if (!confirm(ids.length + '件を「' + yardValue + '」に変更しますか？')) return;
+  var failed = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var res = await fetch('/api/order-items/' + ids[i], {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yard: yardValue })
+      });
+      if (!res.ok) failed++;
+    } catch (e) { failed++; }
+  }
+  if (failed > 0) alert(failed + '件の更新に失敗しました');
+  loadOrderItems();
+}
+
 async function addSelectedToArrival() {
   if (selectedOrderItemIds.size === 0) { alert('入荷管理に追加する行を選んでください'); return; }
   var ids = Array.from(selectedOrderItemIds);
@@ -776,6 +797,8 @@ async function loadOrderItems() {
     document.getElementById('copySelectedBtn').style.display = 'none';
     document.getElementById('addToArrivalBtn').style.display = 'none';
     document.getElementById('clearSelectionBtn').style.display = 'none';
+    document.getElementById('setYardDBtn').style.display = 'none';
+    document.getElementById('setYardBBtn').style.display = 'none';
     return;
   }
   addBtn.style.display = 'inline-block';
@@ -783,6 +806,8 @@ async function loadOrderItems() {
   document.getElementById('copySelectedBtn').style.display = 'inline-block';
   document.getElementById('addToArrivalBtn').style.display = 'inline-block';
   document.getElementById('clearSelectionBtn').style.display = 'inline-block';
+  document.getElementById('setYardDBtn').style.display = 'inline-block';
+  document.getElementById('setYardBBtn').style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
@@ -1062,6 +1087,27 @@ function renderArrivalRows(data) {
     tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
   }
+  // 契約全体のうち「すでに案内が来た分」の本数を、order_item_idごとに集計する（重量の計算に使う）
+  var notifiedQtyMap = {};
+  data.forEach(function(d) {
+    if (d.arrival_date) {
+      var oid = d.order_item_id;
+      notifiedQtyMap[oid] = (notifiedQtyMap[oid] || 0) + (Number(d.arrival_qty) || 0);
+    }
+  });
+
+  function calcRowWeight(d, oi) {
+    if (!oi.quantity || !oi.weight_kg) return '';
+    var qty;
+    if (d.arrival_date) {
+      qty = Number(d.arrival_qty) || 0;
+    } else {
+      qty = Math.max(0, Number(oi.quantity) - (notifiedQtyMap[d.order_item_id] || 0));
+    }
+    var w = Number(oi.weight_kg) * (qty / Number(oi.quantity));
+    return Math.round(w);
+  }
+
   // 同じ契約（order_item_id）の分納行をまとめて表示するため、order_item_id順に並べ替える
   var sorted = data.slice().sort(function(a, b) {
     if (a.order_item_id !== b.order_item_id) return a.order_item_id - b.order_item_id;
@@ -1089,7 +1135,7 @@ function renderArrivalRows(data) {
       plainCell(oi.steel_type, isSplitRow) +
       plainCell(oi.size, isSplitRow) +
       plainCell(oi.quantity, isSplitRow) +
-      arrivalEd(d.id, 'shipping_requested_date', d.shipping_requested_date) +
+      plainCell(calcRowWeight(d, oi), false) +
       '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
       yardDisplayCell(oi.yard, isSplitRow) +
       arrivalEd(d.id, 'shipping_company', isSplitRow ? '' : d.shipping_company) +
