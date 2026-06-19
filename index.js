@@ -157,14 +157,26 @@ async function resolveCarrier(maker, contractNo) {
 
 // 発注明細の行を選んで「入荷管理に追加」する窓口
 // order_item_ids（配列）を受け取り、それぞれに対応する入荷管理の行を1件ずつ作成する
+// 既に登録済みの明細はスキップする（誤って2回登録してしまうのを防ぐため）
 app.post('/api/arrival-schedules', async (req, res) => {
   const { order_item_ids } = req.body;
   if (!Array.isArray(order_item_ids) || order_item_ids.length === 0) {
     return res.status(400).json({ error: '対象の明細が選択されていません' });
   }
   try {
+    const { data: existing, error: existingError } = await supabase
+      .from('arrival_schedules').select('order_item_id').in('order_item_id', order_item_ids);
+    if (existingError) throw new Error(existingError.message);
+    const alreadyRegistered = new Set((existing || []).map(r => r.order_item_id));
+    const targetIds = order_item_ids.filter(id => !alreadyRegistered.has(id));
+    const skipped = order_item_ids.length - targetIds.length;
+
+    if (targetIds.length === 0) {
+      return res.json({ success: true, count: 0, skipped: skipped });
+    }
+
     const { data: items, error: itemsError } = await supabase
-      .from('order_items').select('*').in('id', order_item_ids);
+      .from('order_items').select('*').in('id', targetIds);
     if (itemsError) throw new Error(itemsError.message);
 
     const rows = [];
@@ -178,9 +190,35 @@ app.post('/api/arrival-schedules', async (req, res) => {
     }
     const { data, error } = await supabase.from('arrival_schedules').insert(rows).select();
     if (error) throw new Error(error.message);
-    res.json({ success: true, count: data.length });
+    res.json({ success: true, count: data.length, skipped: skipped });
   } catch (e) {
     console.error('POST /api/arrival-schedules:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 分納対応：既存の入荷予定行をもとに、同じ契約のもう1行を追加する
+// （引取り時期・運送会社は引き継ぎ、入荷予定日・本数・指示書などは空の状態で新しく作る）
+app.post('/api/arrival-schedules/:id/split', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: '無効なIDです' });
+  try {
+    const { data: original, error: getError } = await supabase
+      .from('arrival_schedules').select('*').eq('id', id).maybeSingle();
+    if (getError) throw new Error(getError.message);
+    if (!original) return res.status(404).json({ error: '元の行が見つかりません' });
+
+    const newRow = {
+      order_item_id: original.order_item_id,
+      contract_no: original.contract_no,
+      pickup_period: original.pickup_period,
+      shipping_company: original.shipping_company,
+    };
+    const { data, error } = await supabase.from('arrival_schedules').insert([newRow]).select();
+    if (error) throw new Error(error.message);
+    res.json(data && data[0] ? data[0] : { success: true });
+  } catch (e) {
+    console.error('POST /api/arrival-schedules/:id/split:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -198,6 +236,13 @@ app.delete('/api/arrival-schedules/:id', async (req, res) => {
   if (!id) return res.status(400).json({ error: '無効なIDです' });
   const { error } = await supabase.from('arrival_schedules').delete().eq('id', id);
   if (error) { console.error('DELETE /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  res.json({ success: true });
+});
+
+// 入荷管理データを全件削除する窓口（テストデータの整理用）
+app.delete('/api/arrival-schedules-all', async (req, res) => {
+  const { error } = await supabase.from('arrival_schedules').delete().neq('id', 0);
+  if (error) { console.error('DELETE /api/arrival-schedules-all:', error.message); return res.status(500).json({ error: error.message }); }
   res.json({ success: true });
 });
 

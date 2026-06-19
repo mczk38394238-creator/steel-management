@@ -172,15 +172,18 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 <!-- 入荷管理 -->
 <div id="page-arrival" class="page">
   <h2>入荷管理画面</h2>
-  <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。</div>
+  <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
+  <div class="toolbar">
+    <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
+  </div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
-      <th>入荷予定日</th><th>入荷予定本数</th><th>引取り時期</th><th>出荷依頼済</th>
-      <th>指示書</th><th>運送会社</th><th>操作</th>
+      <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
+      <th>出荷依頼済</th><th>指示書</th><th>運送会社</th><th>操作</th>
     </tr>
     </thead>
     <tbody id="arrivalBody">
@@ -980,13 +983,16 @@ function renderArrivalRows(data) {
       '<td>' + (oi.steel_type || '') + '</td>' +
       '<td>' + (oi.size || '') + '</td>' +
       '<td>' + (oi.quantity || '') + '</td>' +
+      arrivalEd(d.id, 'pickup_period', d.pickup_period) +
       arrivalEd(d.id, 'arrival_date', d.arrival_date) +
       arrivalEd(d.id, 'arrival_qty', d.arrival_qty) +
-      arrivalEd(d.id, 'pickup_period', d.pickup_period) +
       arrivalEd(d.id, 'shipping_requested_date', d.shipping_requested_date) +
       '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
       arrivalEd(d.id, 'shipping_company', d.shipping_company) +
-      '<td><button class="btn btn-danger" onclick="deleteArrivalRow(' + d.id + ')">削除</button></td>' +
+      '<td>' +
+        '<button class="btn btn-secondary" onclick="splitArrivalRow(' + d.id + ')">＋分納</button> ' +
+        '<button class="btn btn-danger" onclick="deleteArrivalRow(' + d.id + ')">削除</button>' +
+      '</td>' +
     '</tr>';
   }).join('');
 }
@@ -1132,6 +1138,25 @@ async function deleteArrivalRow(id) {
   if (!confirm('この入荷予定行を削除しますか？')) return;
   try {
     var res = await fetch('/api/arrival-schedules/' + id, { method: 'DELETE' });
+    if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function splitArrivalRow(id) {
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id + '/split', { method: 'POST' });
+    if (res.ok) {
+      loadArrivalSchedules();
+    } else {
+      alert('分納行の追加に失敗しました');
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteAllArrivalRows() {
+  if (!confirm('入荷管理の全データを削除します。よろしいですか？\n（この操作は元に戻せません。テストデータの整理用です）')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules-all', { method: 'DELETE' });
     if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
