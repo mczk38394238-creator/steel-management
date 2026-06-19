@@ -119,6 +119,26 @@ app.post('/api/order-items/bulk', async (req, res) => {
   res.json({ success: true, count: data.length });
 });
 
+// ===== 入荷管理 =====
+
+// 入荷予定を全件取得する窓口（全物件横断・発注明細の情報も一緒に取得）
+app.get('/api/arrival-schedules', async (req, res) => {
+  const { data, error } = await supabase
+    .from('arrival_schedules')
+    .select('*, order_items(*)')
+    .order('id', { ascending: true });
+  if (error) { console.error('GET /api/arrival-schedules:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
+});
+
+// メーカー→運送会社の対応表を取得する窓口
+app.get('/api/carriers-master', async (req, res) => {
+  const { data, error } = await supabase
+    .from('carriers_master').select('*').order('id', { ascending: true });
+  if (error) { console.error('GET /api/carriers-master:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

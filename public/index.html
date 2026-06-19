@@ -78,6 +78,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 <div class="nav">
   <button class="active" onclick="showPage('master', this)">物件マスター</button>
   <button onclick="showPage('zaizai', this)">資材部管理</button>
+  <button onclick="showPage('arrival', this)">入荷管理</button>
   <button class="trash-btn" onclick="showPage('trash', this)">🗑 ゴミ箱</button>
 </div>
 <div class="content">
@@ -163,6 +164,27 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     </tr>
     </thead>
     <tbody id="orderBody"></tbody>
+  </table>
+  </div>
+</div>
+
+<!-- 入荷管理 -->
+<div id="page-arrival" class="page">
+  <h2>入荷管理画面</h2>
+  <div class="note">※ 全物件を横断して表示します。発注明細画面で行を選び「入荷管理に追加」すると、ここに表示されます。(この機能は次回実装予定です)</div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+    <tr>
+      <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
+      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th>
+      <th>入荷予定(日付・本数)</th><th>引取り時期</th><th>出荷依頼済</th>
+      <th>指示書</th><th>運送会社</th><th>操作</th>
+    </tr>
+    </thead>
+    <tbody id="arrivalBody">
+      <tr><td colspan="14" style="text-align:center;color:#999;padding:20px;">準備中です(次回、データの表示機能を実装します)</td></tr>
+    </tbody>
   </table>
   </div>
 </div>
