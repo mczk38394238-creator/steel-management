@@ -133,6 +133,8 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
     <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
+    <button class="btn btn-secondary" onclick="clearRowSelection()" id="clearSelectionBtn" style="display:none">選択解除</button>
+    <span id="selectedCountBadge" class="badge-count" style="display:none"></span>
   </div>
   <div class="table-wrap">
   <table>
@@ -533,6 +535,34 @@ function edNum(id, field, val, cls) {
 
 var currentOrderItems = [];
 
+// 選択中の明細ID（フィルターを切り替えても消えないように、画面の外側で覚えておく）
+var selectedOrderItemIds = new Set();
+
+function updateSelectedCountBadge() {
+  var badge = document.getElementById('selectedCountBadge');
+  if (!badge) return;
+  if (selectedOrderItemIds.size > 0) {
+    badge.textContent = selectedOrderItemIds.size + '件選択中';
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleRowSelection(checkbox) {
+  var id = Number(checkbox.getAttribute('data-id'));
+  if (checkbox.checked) { selectedOrderItemIds.add(id); }
+  else { selectedOrderItemIds.delete(id); }
+  updateSelectedCountBadge();
+}
+
+function clearRowSelection() {
+  selectedOrderItemIds.clear();
+  document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = false; });
+  document.getElementById('selectAllRows').checked = false;
+  updateSelectedCountBadge();
+}
+
 function renderOrderRows(data) {
   var tbody = document.getElementById('orderBody');
   if (!Array.isArray(data) || data.length === 0) {
@@ -541,8 +571,9 @@ function renderOrderRows(data) {
   }
   tbody.innerHTML = data.map(function(d) {
     var delivery = d.tentative_delivery || '';
+    var checkedAttr = selectedOrderItemIds.has(d.id) ? ' checked' : '';
     return '<tr>' +
-      '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"></td>' +
+      '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"' + checkedAttr + ' onchange="toggleRowSelection(this)"></td>' +
       ed(d.id, 'seq_no', d.seq_no, 'col-frozen') +
       ed(d.id, 'trading_company', d.trading_company) +
       ed(d.id, 'maker', d.maker) +
@@ -569,13 +600,18 @@ function renderOrderRows(data) {
 }
 
 function toggleSelectAll(checkbox) {
-  document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checkbox.checked; });
+  document.querySelectorAll('.row-check').forEach(function(cb) {
+    cb.checked = checkbox.checked;
+    var id = Number(cb.getAttribute('data-id'));
+    if (checkbox.checked) { selectedOrderItemIds.add(id); }
+    else { selectedOrderItemIds.delete(id); }
+  });
+  updateSelectedCountBadge();
 }
 
 function copySelectedRows() {
-  var checked = document.querySelectorAll('.row-check:checked');
-  if (checked.length === 0) { alert('コピーする行を選んでください'); return; }
-  var ids = Array.prototype.map.call(checked, function(cb) { return Number(cb.getAttribute('data-id')); });
+  if (selectedOrderItemIds.size === 0) { alert('コピーする行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
   var rows = ids.map(function(id) { return currentOrderItems.find(function(d) { return d.id === id; }); }).filter(Boolean);
   var text = rows.map(function(d) {
     return PASTE_COL_MAP.map(function(m) {
@@ -591,9 +627,8 @@ function copySelectedRows() {
 }
 
 async function addSelectedToArrival() {
-  var checked = document.querySelectorAll('.row-check:checked');
-  if (checked.length === 0) { alert('入荷管理に追加する行を選んでください'); return; }
-  var ids = Array.prototype.map.call(checked, function(cb) { return Number(cb.getAttribute('data-id')); });
+  if (selectedOrderItemIds.size === 0) { alert('入荷管理に追加する行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
   if (!confirm(ids.length + '件を入荷管理に追加しますか？')) return;
   try {
     var res = await fetch('/api/arrival-schedules', {
@@ -603,7 +638,11 @@ async function addSelectedToArrival() {
     });
     var result = await res.json();
     if (res.ok) {
-      alert(result.count + '件を入荷管理に追加しました。「入荷管理」タブで確認できます。');
+      var msg = result.count + '件を入荷管理に追加しました。';
+      if (result.skipped > 0) msg += '（' + result.skipped + '件は既に登録済みのためスキップしました）';
+      msg += '「入荷管理」タブで確認できます。';
+      alert(msg);
+      clearRowSelection();
     } else {
       alert('追加に失敗しました: ' + (result.error || ''));
     }
@@ -692,6 +731,8 @@ async function loadOrderItems() {
   var addBtn = document.getElementById('addItemBtn');
   var pasteBtn = document.getElementById('pasteBtn');
   var tbody = document.getElementById('orderBody');
+  selectedOrderItemIds.clear();
+  updateSelectedCountBadge();
   if (!currentProjectId) {
     currentOrderItems = [];
     populateFilters([]);
@@ -700,12 +741,14 @@ async function loadOrderItems() {
     pasteBtn.style.display = 'none';
     document.getElementById('copySelectedBtn').style.display = 'none';
     document.getElementById('addToArrivalBtn').style.display = 'none';
+    document.getElementById('clearSelectionBtn').style.display = 'none';
     return;
   }
   addBtn.style.display = 'inline-block';
   pasteBtn.style.display = 'inline-block';
   document.getElementById('copySelectedBtn').style.display = 'inline-block';
   document.getElementById('addToArrivalBtn').style.display = 'inline-block';
+  document.getElementById('clearSelectionBtn').style.display = 'inline-block';
   try {
     var res = await fetch('/api/order-items/' + currentProjectId);
     var data = await res.json();
