@@ -1005,6 +1005,40 @@ async function loadArrivalSchedules() {
   }
 }
 
+// 日付の入力欄（年を省略して「7/14」のように書いても自動で年を補う）
+var DATE_FIELDS = ['arrival_date', 'shipping_requested_date'];
+
+function parseFlexibleDate(text) {
+  text = text.trim();
+  if (text === '') return { ok: true, value: null, display: '' };
+  // すでに「2026-07-14」や「2026/7/14」の形式
+  var full = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (full) {
+    var y = Number(full[1]), m = Number(full[2]), d = Number(full[3]);
+    return finalizeDate(y, m, d, text);
+  }
+  // 「7/14」「7-14」のように年を省略した形式
+  var short = text.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (short) {
+    var m2 = Number(short[1]), d2 = Number(short[2]);
+    var now = new Date();
+    var year = now.getFullYear();
+    // 入力された月日が「今日より2か月以上前」なら、来年のことだと判断する
+    var candidate = new Date(year, m2 - 1, d2);
+    var diffDays = (candidate - now) / (1000 * 60 * 60 * 24);
+    if (diffDays < -60) year += 1;
+    return finalizeDate(year, m2, d2, m2 + '/' + d2);
+  }
+  return { ok: false };
+}
+
+function finalizeDate(y, m, d, display) {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return { ok: false };
+  var mm = String(m).padStart(2, '0');
+  var dd = String(d).padStart(2, '0');
+  return { ok: true, value: y + '-' + mm + '-' + dd, display: display };
+}
+
 function makeArrivalEditable(td, id, field) {
   if (td.querySelector('input')) return;
   var originalText = td.textContent.trim();
@@ -1012,6 +1046,7 @@ function makeArrivalEditable(td, id, field) {
   input.className = 'inline-input';
   input.type = 'text';
   input.value = originalText;
+  if (DATE_FIELDS.indexOf(field) !== -1) input.placeholder = '例：7/14';
   td.textContent = '';
   td.appendChild(input);
   input.focus();
@@ -1034,7 +1069,31 @@ function makeArrivalEditable(td, id, field) {
       return;
     }
     var body = {};
-    body[field] = newText === '' ? null : newText;
+    var displayText = newText;
+    if (DATE_FIELDS.indexOf(field) !== -1) {
+      var parsed = parseFlexibleDate(newText);
+      if (!parsed.ok) {
+        td.textContent = originalText;
+        alert('日付の形式が正しくありません。「7/14」または「2026/7/14」のように入力してください。');
+        return;
+      }
+      body[field] = parsed.value;
+      displayText = newText === '' ? '' : parsed.value;
+    } else if (field === 'arrival_qty') {
+      if (newText === '') {
+        body[field] = null;
+      } else {
+        var num = Number(newText.replace(/,/g, ''));
+        if (isNaN(num)) {
+          td.textContent = originalText;
+          alert('入荷予定本数は数字で入力してください');
+          return;
+        }
+        body[field] = num;
+      }
+    } else {
+      body[field] = newText === '' ? null : newText;
+    }
     try {
       var res = await fetch('/api/arrival-schedules/' + id, {
         method: 'PUT',
@@ -1042,7 +1101,7 @@ function makeArrivalEditable(td, id, field) {
         body: JSON.stringify(body)
       });
       if (res.ok) {
-        td.textContent = newText;
+        td.textContent = displayText;
       } else {
         td.textContent = originalText;
         alert('更新に失敗しました');
