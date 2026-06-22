@@ -13,6 +13,9 @@ body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
 .nav button.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
 .nav button.trash-btn { border-color: #c84; color: #fb8; }
 .nav button.trash-btn.active { background: #6b3a1f; border-color: #6b3a1f; color: white; }
+.subtab { display: flex; gap: 6px; margin-bottom: 14px; }
+.subtab button { background: #fff; color: #1a3a5c; border: 1px solid #1a3a5c; padding: 8px 18px; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: bold; }
+.subtab button.active { background: #1a3a5c; color: #fff; }
 .content { padding: 20px; }
 .page { display: none; }
 .page.active { display: block; }
@@ -176,7 +179,11 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 
 <!-- 入荷管理 -->
 <div id="page-arrival" class="page">
-  <h2>入荷管理画面</h2>
+  <h2 id="arrivalTitle">□〇入荷管理</h2>
+  <div class="subtab">
+    <button id="tabSquareCircle" class="active" onclick="switchArrivalTab('square_circle')">□〇入荷管理</button>
+    <button id="tabHType" onclick="switchArrivalTab('h_type')">H関係入荷管理</button>
+  </div>
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
@@ -1062,6 +1069,24 @@ async function registerPaste() {
 
 // ===== 入荷管理 =====
 var currentArrivalSchedules = [];
+var currentArrivalCategory = 'square_circle'; // 表示中のタブ（square_circle = □〇 / h_type = H関係）
+
+// 鋼種から「□〇」グループか「H関係」グループかを判定する
+// どちらにも当てはまらない場合は 'other'（両方のタブに表示する）
+function categorizeSteelType(steelType) {
+  var t = (steelType || '').trim();
+  if (t === '□' || t === '〇') return 'square_circle';
+  if (t === 'H' || t === '外H' || t === 'BH' || t === 'TH') return 'h_type';
+  return 'other';
+}
+
+function switchArrivalTab(tab) {
+  currentArrivalCategory = tab;
+  document.getElementById('tabSquareCircle').classList.toggle('active', tab === 'square_circle');
+  document.getElementById('tabHType').classList.toggle('active', tab === 'h_type');
+  document.getElementById('arrivalTitle').textContent = (tab === 'square_circle') ? '□〇入荷管理' : 'H関係入荷管理';
+  renderArrivalRows(currentArrivalSchedules);
+}
 
 function arrivalEd(id, field, val, isDate) {
   var v = (val !== null && val !== undefined) ? String(val) : '';
@@ -1081,8 +1106,14 @@ function yardDisplayCell(yard, blank) {
   return '<td style="text-align:center;color:#555;">' + v + '</td>';
 }
 
-function renderArrivalRows(data) {
+function renderArrivalRows(rawData) {
   var tbody = document.getElementById('arrivalBody');
+  // 選んでいるタブ（□〇 / H関係）に合う行だけを表示する。判定できない鋼種は両方のタブに表示する
+  var data = (Array.isArray(rawData) ? rawData : []).filter(function(d) {
+    var oi = d.order_items || {};
+    var cat = categorizeSteelType(oi.steel_type);
+    return cat === currentArrivalCategory || cat === 'other';
+  });
   if (!Array.isArray(data) || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
