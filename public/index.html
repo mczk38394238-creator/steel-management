@@ -187,7 +187,6 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
-    <button class="btn btn-primary" onclick="openDirectArrivalModal()">＋実績を直接登録（予定が無い場合）</button>
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
   <div class="toolbar" style="background:#eef2f6;padding:10px 12px;border-radius:6px;">
@@ -282,36 +281,6 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <div class="modal-footer">
     <button class="btn btn-secondary" onclick="closeModal('addItemModal')">キャンセル</button>
     <button class="btn btn-primary" onclick="saveItem()">保存</button>
-  </div>
-</div>
-</div>
-
-<!-- 実績直接登録モーダル -->
-<div id="directArrivalModal" class="modal">
-<div class="modal-box">
-  <h3>実績を直接登録（予定が無い場合）</h3>
-  <div class="note" style="margin-bottom:10px;">入荷管理に予定行が無い明細について、実際に届いた内容を直接登録できます。登録すると、入荷予定の行も自動で作成されます。</div>
-  <div class="form-group">
-    <label>契約Noで検索</label>
-    <div style="display:flex;gap:6px;">
-      <input id="da_search" type="text" placeholder="契約Noの一部を入力" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();searchOrderItemsForDirect();}">
-      <button class="btn btn-secondary" onclick="searchOrderItemsForDirect()">検索</button>
-    </div>
-  </div>
-  <div id="da_results" style="max-height:200px;overflow-y:auto;border:1px solid #ddd;margin-bottom:10px;"></div>
-  <input type="hidden" id="da_order_item_id">
-  <div id="da_selected" style="font-size:13px;color:#1a3a5c;font-weight:bold;margin-bottom:10px;"></div>
-  <div class="form-row">
-    <div class="form-group"><label>入荷日</label><input id="da_date" type="date"></div>
-    <div class="form-group"><label>入荷本数</label><input id="da_qty" type="text"></div>
-  </div>
-  <div class="form-row">
-    <div class="form-group"><label>納品書番号</label><input id="da_note_no" type="text"></div>
-    <div class="form-group"><label>備考</label><input id="da_notes" type="text"></div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn btn-secondary" onclick="closeModal('directArrivalModal')">キャンセル</button>
-    <button class="btn btn-primary" onclick="saveDirectArrival()">登録</button>
   </div>
 </div>
 </div>
@@ -1386,89 +1355,6 @@ async function deleteAllArrivalRows() {
     var res = await fetch('/api/arrival-schedules-all', { method: 'DELETE' });
     if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
   } catch (e) { alert('通信エラー: ' + e.message); }
-}
-
-// 実績の直接登録モーダルを開く（毎回フォームをまっさらな状態にしてから開く）
-function openDirectArrivalModal() {
-  document.getElementById('da_search').value = '';
-  document.getElementById('da_results').innerHTML = '';
-  document.getElementById('da_order_item_id').value = '';
-  document.getElementById('da_selected').textContent = '';
-  document.getElementById('da_date').value = '';
-  document.getElementById('da_qty').value = '';
-  document.getElementById('da_note_no').value = '';
-  document.getElementById('da_notes').value = '';
-  document.getElementById('directArrivalModal').classList.add('open');
-}
-
-// 契約Noで明細を検索し、候補一覧を表示する
-async function searchOrderItemsForDirect() {
-  var q = document.getElementById('da_search').value.trim();
-  var resultsEl = document.getElementById('da_results');
-  if (!q) { resultsEl.innerHTML = ''; return; }
-  resultsEl.innerHTML = '<div style="padding:8px;color:#999;">検索中...</div>';
-  try {
-    var res = await fetch('/api/order-items/search-by-contract?q=' + encodeURIComponent(q));
-    var data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      resultsEl.innerHTML = '<div style="padding:8px;color:#999;">該当する明細が見つかりません</div>';
-      return;
-    }
-    resultsEl.innerHTML = data.map(function(item) {
-      var projectName = (item.projects && item.projects.project_name) || '';
-      var safeContract = (item.contract_no || '').replace(/'/g, '');
-      var safeSeq = String(item.seq_no || '').replace(/'/g, '');
-      var safeProject = projectName.replace(/'/g, '');
-      return '<div style="padding:6px 8px;border-bottom:1px solid #eee;cursor:pointer;" ' +
-        'onclick="selectDirectItem(' + item.id + ',\'' + safeContract + '\',\'' + safeSeq + '\',\'' + safeProject + '\')">' +
-        '通しNo:' + (item.seq_no || '') + '　契約No:' + (item.contract_no || '') + '　' +
-        (item.steel_type || '') + ' ' + (item.size || '') + '　工事名:' + projectName +
-        '</div>';
-    }).join('');
-  } catch (e) {
-    resultsEl.innerHTML = '<div style="padding:8px;color:#dc3545;">検索エラー</div>';
-  }
-}
-
-// 検索結果から1件選んで、登録対象として確定する
-function selectDirectItem(id, contractNo, seqNo, projectName) {
-  document.getElementById('da_order_item_id').value = id;
-  document.getElementById('da_selected').textContent = '選択中：通しNo ' + seqNo + '／契約No ' + contractNo + '／' + projectName;
-}
-
-// 入力内容を /api/arrivals/direct に送って登録する
-async function saveDirectArrival() {
-  var orderItemId = document.getElementById('da_order_item_id').value;
-  var date = document.getElementById('da_date').value;
-  var qtyText = document.getElementById('da_qty').value.trim();
-  if (!orderItemId) { alert('検索結果から明細を選択してください'); return; }
-  if (!date) { alert('入荷日を入力してください'); return; }
-  if (!qtyText) { alert('入荷本数を入力してください'); return; }
-  var qty = Number(qtyText.replace(/,/g, ''));
-  if (isNaN(qty)) { alert('入荷本数は数字で入力してください'); return; }
-  try {
-    var res = await fetch('/api/arrivals/direct', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        order_item_id: Number(orderItemId),
-        arrival_date: date,
-        arrival_qty: qty,
-        delivery_note_no: document.getElementById('da_note_no').value.trim() || null,
-        notes: document.getElementById('da_notes').value.trim() || null,
-      })
-    });
-    var result = await res.json();
-    if (res.ok) {
-      closeModal('directArrivalModal');
-      loadArrivalSchedules();
-      alert('実績を登録しました');
-    } else {
-      alert('登録に失敗しました: ' + (result.error || ''));
-    }
-  } catch (e) {
-    alert('通信エラー: ' + e.message);
-  }
 }
 
 async function calculateArrivalPlan() {

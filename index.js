@@ -78,22 +78,6 @@ app.delete('/api/projects/:id', async (req, res) => {
 
 // ===== 明細 =====
 
-// 契約Noで明細を横断検索する窓口（実績の直接登録で、対象の明細を探すときに使用）
-// ※ この道は「/api/order-items/:projectId」より前に置かないと、
-//   「search-by-contract」という文字列がprojectIdだと誤解されてしまうため、順番が重要
-app.get('/api/order-items/search-by-contract', async (req, res) => {
-  const q = (req.query.q || '').trim();
-  if (!q) return res.json([]);
-  const { data, error } = await supabase
-    .from('order_items')
-    .select('*, projects(project_name)')
-    .ilike('contract_no', '%' + q + '%')
-    .order('id', { ascending: true })
-    .limit(50);
-  if (error) { console.error('GET /api/order-items/search-by-contract:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
-});
-
 app.get('/api/order-items/:projectId', async (req, res) => {
   const { data, error } = await supabase
     .from('order_items').select('*').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
@@ -136,48 +120,6 @@ app.post('/api/order-items/bulk', async (req, res) => {
 });
 
 // ===== 入荷管理 =====
-
-// 予定（入荷管理）の行が無い場合に、実績だけを直接登録する窓口
-// 内部的には入荷予定行を新しく1件作り、入荷日・本数をその場で入れて確定させる
-// （入荷予定行を作ると、上のsyncScheduleToArrivalsにより実績（arrivals）にも自動で反映される）
-app.post('/api/arrivals/direct', async (req, res) => {
-  const { order_item_id, arrival_date, arrival_qty, delivery_note_no, notes } = req.body;
-  if (!order_item_id || !arrival_date || arrival_qty === undefined || arrival_qty === null) {
-    return res.status(400).json({ error: '明細・入荷日・入荷本数は必須です' });
-  }
-  try {
-    const { data: item, error: itemError } = await supabase
-      .from('order_items').select('*').eq('id', order_item_id).maybeSingle();
-    if (itemError) throw new Error(itemError.message);
-    if (!item) return res.status(404).json({ error: '対象の明細が見つかりません' });
-
-    const carrier = await resolveCarrier(item.maker, item.contract_no);
-    const { data: scheduleData, error: scheduleError } = await supabase
-      .from('arrival_schedules')
-      .insert([{
-        order_item_id: item.id,
-        contract_no: item.contract_no,
-        shipping_company: carrier,
-        arrival_date: arrival_date,
-        arrival_qty: arrival_qty,
-      }])
-      .select();
-    if (scheduleError) throw new Error(scheduleError.message);
-    const scheduleRow = scheduleData[0];
-
-    await syncScheduleToArrivals(scheduleRow);
-    if (delivery_note_no || notes) {
-      await supabase.from('arrivals')
-        .update({ delivery_note_no: delivery_note_no || null, notes: notes || null })
-        .eq('schedule_id', scheduleRow.id);
-    }
-
-    res.json({ success: true, schedule: scheduleRow });
-  } catch (e) {
-    console.error('POST /api/arrivals/direct:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // 入荷予定を全件取得する窓口（全物件横断・発注明細と物件情報も一緒に取得）
 app.get('/api/arrival-schedules', async (req, res) => {
