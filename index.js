@@ -78,6 +78,22 @@ app.delete('/api/projects/:id', async (req, res) => {
 
 // ===== 明細 =====
 
+// 契約Noで明細を横断検索する窓口（実績の直接登録で、対象の明細を探すときに使用）
+// ※ この道は「/api/order-items/:projectId」より前に置かないと、
+//   「search-by-contract」という文字列がprojectIdだと誤解されてしまうため、順番が重要
+app.get('/api/order-items/search-by-contract', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json([]);
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*, projects(project_name)')
+    .ilike('contract_no', '%' + q + '%')
+    .order('id', { ascending: true })
+    .limit(50);
+  if (error) { console.error('GET /api/order-items/search-by-contract:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json(data || []);
+});
+
 app.get('/api/order-items/:projectId', async (req, res) => {
   const { data, error } = await supabase
     .from('order_items').select('*').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
@@ -120,20 +136,6 @@ app.post('/api/order-items/bulk', async (req, res) => {
 });
 
 // ===== 入荷管理 =====
-
-// 契約Noで明細を横断検索する窓口（実績の直接登録で、対象の明細を探すときに使用）
-app.get('/api/order-items/search-by-contract', async (req, res) => {
-  const q = (req.query.q || '').trim();
-  if (!q) return res.json([]);
-  const { data, error } = await supabase
-    .from('order_items')
-    .select('*, projects(project_name)')
-    .ilike('contract_no', '%' + q + '%')
-    .order('id', { ascending: true })
-    .limit(50);
-  if (error) { console.error('GET /api/order-items/search-by-contract:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
-});
 
 // 予定（入荷管理）の行が無い場合に、実績だけを直接登録する窓口
 // 内部的には入荷予定行を新しく1件作り、入荷日・本数をその場で入れて確定させる
