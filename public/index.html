@@ -138,7 +138,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
     <button class="btn btn-secondary" onclick="clearRowSelection()" id="clearSelectionBtn" style="display:none">選択解除</button>
     <button class="btn btn-danger" onclick="setSelectedYard('D棟')" id="setYardDBtn" style="display:none">🏭 選択行をD棟に変更</button>
-    <button class="btn btn-secondary" onclick="setSelectedYard('B棟')" id="setYardBBtn" style="display:none">🏭 選択行をB棟に変更</button>
+    <button class="btn btn-secondary" onclick="setSelectedYard('A棟')" id="setYardBBtn" style="display:none">🏭 選択行をA棟に変更</button>
     <span id="selectedCountBadge" class="badge-count" style="display:none"></span>
   </div>
   <div class="table-wrap">
@@ -267,7 +267,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <div class="form-group"><label>向け先</label><input id="i_dest" type="text"></div>
     <div class="form-group"><label>受入ヤード</label>
       <select id="i_yard">
-        <option value="B棟">B棟</option>
+        <option value="A棟">A棟</option>
         <option value="D棟">D棟</option>
       </select>
     </div>
@@ -555,12 +555,12 @@ function edNum(id, field, val, cls) {
   return '<td' + clsAttr + ' onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
 }
 
-// 受入ヤード（B棟／D棟）：クリックで切り替える
+// 受入ヤード（A棟／D棟）：クリックで切り替える
 function yardCell(d) {
-  var yard = d.yard || 'B棟';
+  var yard = d.yard || 'A棟';
   var isD = yard === 'D棟';
   var style = isD ? 'color:#fff;background:#dc3545;font-weight:bold;cursor:pointer;text-align:center;' : 'cursor:pointer;text-align:center;color:#555;';
-  var next = isD ? 'B棟' : 'D棟';
+  var next = isD ? 'A棟' : 'D棟';
   return '<td onclick="toggleYard(' + d.id + ',\'' + next + '\')" style="' + style + '">' + yard + '</td>';
 }
 
@@ -896,7 +896,7 @@ function openAddItemModal() {
   document.getElementById('i_arrived').value = '0';
   document.getElementById('i_pending').value = '0';
   document.getElementById('i_pending_weight').value = '0';
-  document.getElementById('i_yard').value = 'B棟';
+  document.getElementById('i_yard').value = 'A棟';
   document.getElementById('addItemModal').classList.add('open');
 }
 
@@ -916,7 +916,7 @@ function openEditItemModal(d) {
   document.getElementById('i_qty').value = d.quantity !== null && d.quantity !== undefined ? d.quantity : '';
   document.getElementById('i_weight').value = d.weight_kg !== null && d.weight_kg !== undefined ? d.weight_kg : '';
   document.getElementById('i_dest').value = d.destination || '';
-  document.getElementById('i_yard').value = d.yard || 'B棟';
+  document.getElementById('i_yard').value = d.yard || 'A棟';
   document.getElementById('i_arrived').value = d.arrived_qty !== null && d.arrived_qty !== undefined ? d.arrived_qty : 0;
   document.getElementById('i_pending').value = d.pending_qty !== null && d.pending_qty !== undefined ? d.pending_qty : 0;
   document.getElementById('i_pending_weight').value = d.pending_weight_kg !== null && d.pending_weight_kg !== undefined ? d.pending_weight_kg : 0;
@@ -941,7 +941,7 @@ async function saveItem() {
     quantity: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value.replace(/,/g,'')) : null,
     weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value.replace(/,/g,'')) : null,
     destination: document.getElementById('i_dest').value || null,
-    yard: document.getElementById('i_yard').value || 'B棟',
+    yard: document.getElementById('i_yard').value || 'A棟',
     arrived_qty: parseInt(document.getElementById('i_arrived').value.replace(/,/g,'')) || 0,
     pending_qty: parseInt(document.getElementById('i_pending').value.replace(/,/g,'')) || 0,
     pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value.replace(/,/g,'')) : null,
@@ -1101,7 +1101,7 @@ function plainCell(text, blank) {
 // 受入ヤードの表示（D棟は目立つ表示にする）
 function yardDisplayCell(yard, blank) {
   if (blank) return '<td></td>';
-  var v = yard || 'B棟';
+  var v = yard || 'A棟';
   if (v === 'D棟') return '<td style="color:#fff;background:#dc3545;font-weight:bold;text-align:center;">D棟</td>';
   return '<td style="text-align:center;color:#555;">' + v + '</td>';
 }
