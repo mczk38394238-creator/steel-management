@@ -210,7 +210,8 @@ app.post('/api/arrival-schedules', async (req, res) => {
 
     const rows = [];
     for (const item of items) {
-      const carrier = await resolveCarrier(item.maker, item.contract_no);
+      // 資材部管理画面で運送会社が入力済みならそれを優先。未入力の場合のみ従来通りcarriers_masterから自動判定する
+      const carrier = item.carrier || await resolveCarrier(item.maker, item.contract_no);
       rows.push({
         order_item_id: item.id,
         contract_no: item.contract_no,
