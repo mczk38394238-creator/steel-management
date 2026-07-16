@@ -1,432 +1,1394 @@
-const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>望月鉄工所 鋼材管理システム</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
+.header { background: #1a3a5c; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; }
+.nav { background: #2c5f8a; display: flex; gap: 4px; padding: 8px 20px; }
+.nav button { background: transparent; color: #aac; border: 1px solid #4a8; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+.nav button.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
+.nav button.trash-btn { border-color: #c84; color: #fb8; }
+.nav button.trash-btn.active { background: #6b3a1f; border-color: #6b3a1f; color: white; }
+.subtab { display: flex; gap: 6px; margin-bottom: 14px; }
+.subtab button { background: #fff; color: #1a3a5c; border: 1px solid #1a3a5c; padding: 8px 18px; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: bold; }
+.subtab button.active { background: #1a3a5c; color: #fff; }
+.content { padding: 20px; }
+.page { display: none; }
+.page.active { display: block; }
+h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.btn-primary { background: #1a3a5c; color: white; }
+.btn-secondary { background: #6c757d; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-danger { background: #dc3545; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-danger-lg { background: #dc3545; color: white; font-size: 14px; }
+.btn-success { background: #28a745; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-restore { background: #fd7e14; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-excel { background: #217346; color: white; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; }
+th { background: #1a3a5c; color: white; padding: 8px 6px; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 5; }
+td { padding: 5px 6px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+td.editable { cursor: pointer; }
+td.editable:hover { background: #e8f4fd !important; outline: 1px solid #aac; }
+tr:hover td { background: #f0f4f8; }
+tr.selected-row td { background: #fff3cd !important; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+.modal.open { display: flex; align-items: center; justify-content: center; }
+.modal-box { background: white; padding: 24px; border-radius: 8px; min-width: 360px; max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
+.modal-box.wide { max-width: 1000px; }
+.modal-box h3 { margin-bottom: 16px; font-size: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; margin-bottom: 4px; font-size: 13px; color: #555; font-weight: bold; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.note { background: #fff3cd; border: 1px solid #ffc107; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+.trash-note { background: #f8d7da; border: 1px solid #f5c6cb; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+.project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.project-selector label { font-weight: bold; color: #333; }
+.project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
+.table-wrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid #ddd; }
+.filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
+.col-frozen { position: sticky; left: 36px; }
+td.col-frozen { background: white; z-index: 3; }
+th.col-frozen { z-index: 6; }
+#filterRow td.col-frozen { z-index: 5; }
+.col-check { position: sticky; left: 0; width: 36px; text-align: center; }
+td.col-check { background: white; z-index: 3; }
+th.col-check { z-index: 6; }
+#filterRow td.col-check { z-index: 5; background: #eef2f6; }
+#filterRow td { background: #eef2f6; padding: 3px 4px; position: sticky; top: var(--header-h, 37px); z-index: 4; }
+.arrived { color: #28a745; font-weight: bold; }
+.pending { color: #dc3545; font-weight: bold; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.badge-count { background: #dc3545; color: white; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+th input[type="checkbox"] { vertical-align: middle; }
+.preview-table-wrap { overflow: auto; max-height: 380px; margin-top: 8px; border: 1px solid #ddd; }
+.preview-table-wrap table { font-size: 11px; min-width: max-content; }
+.preview-table-wrap th { padding: 4px 6px; position: sticky; top: 0; }
+.preview-table-wrap td { padding: 3px 6px; }
+.inline-input { width: 100%; min-width: 60px; padding: 2px 4px; border: 2px solid #1a3a5c; border-radius: 2px; font-size: 13px; background: #fffde7; font-family: inherit; box-sizing: border-box; }
+body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { position: static !important; }
+</style>
+</head>
+<body>
+<div class="header">望月鉄工所 鋼材管理システム</div>
+<div class="nav">
+  <button class="active" onclick="showPage('master', this)">物件マスター</button>
+  <button onclick="showPage('zaizai', this)">資材部管理</button>
+  <button onclick="showPage('arrival', this)">入荷管理</button>
+  <button class="trash-btn" onclick="showPage('trash', this)">🗑 ゴミ箱</button>
+</div>
+<div class="content">
 
-const app = express();
-app.use(express.json());
-app.use(express.static('public'));
+<!-- 物件マスター -->
+<div id="page-master" class="page active">
+  <h2>物件マスター</h2>
+  <button class="btn btn-primary" id="btnNewProject" style="margin-bottom:12px">＋ 新規物件登録</button>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>No</th><th>物件コード</th><th>物件名</th><th>得意先名</th><th>登録日</th><th>操作</th>
+    </tr></thead>
+    <tbody id="projectBody">
+      <tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
 
-const WebSocket = require('ws');
-global.WebSocket = WebSocket;
+<!-- ゴミ箱 -->
+<div id="page-trash" class="page">
+  <h2>🗑 ゴミ箱</h2>
+  <div class="trash-note">⚠ ここに表示される物件を「完全削除」するとデータベースから取り消せません。「元に戻す」で物件マスターに復元できます。</div>
+  <div class="toolbar">
+    <button class="btn btn-danger-lg" onclick="permanentDeleteSelected()">🗑 選択した物件を完全削除</button>
+    <span id="trashSelectedCount" class="badge-count" style="display:none">0件選択中</span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th><input type="checkbox" id="trashCheckAll" title="全選択"></th>
+      <th>No</th><th>物件コード</th><th>物件名</th><th>得意先名</th><th>登録日</th><th>操作</th>
+    </tr></thead>
+    <tbody id="trashBody">
+      <tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">ゴミ箱は空です</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+<!-- 資材部管理 -->
+<div id="page-zaizai" class="page">
+  <h2>資材部管理画面</h2>
+  <div class="note">※ 規格部「-T」は高規格材とする（弊社独自規定）。各データセルをクリックすると直接編集できます。</div>
+  <div class="project-selector">
+    <label>物件選択：</label>
+    <select id="projectSelect" onchange="loadOrderItems()">
+      <option value="">-- 物件を選択してください --</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddItemModal()" id="addItemBtn" style="display:none">＋ 明細追加</button>
+    <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
+    <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
+    <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
+    <button class="btn btn-secondary" onclick="clearRowSelection()" id="clearSelectionBtn" style="display:none">選択解除</button>
+    <button class="btn btn-danger" onclick="setSelectedYard('D棟')" id="setYardDBtn" style="display:none">🏭 選択行をD棟に変更</button>
+    <button class="btn btn-secondary" onclick="setSelectedYard('A棟')" id="setYardBBtn" style="display:none">🏭 選択行をA棟に変更</button>
+    <span id="selectedCountBadge" class="badge-count" style="display:none"></span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+    <tr>
+      <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th><th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
+      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
+      <th>員数</th><th>重量</th><th>向け先</th><th>受入ヤード</th><th>入荷本数</th><th>未入荷本数</th>
+      <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
+    </tr>
+    <tr id="filterRow">
+      <td class="col-check"></td><td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="trading_company" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="maker" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="tentative_delivery" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="section" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="contract_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="steel_type" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="size" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="standard" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="length_mm" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="quantity" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="destination" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="yard" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="arrived_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="pending_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="pending_weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="notes" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td></td>
+    </tr>
+    </thead>
+    <tbody id="orderBody"></tbody>
+  </table>
+  </div>
+</div>
 
-// ===== 物件 =====
+<!-- 入荷管理 -->
+<div id="page-arrival" class="page">
+  <h2 id="arrivalTitle">□〇入荷管理</h2>
+  <div class="subtab">
+    <button id="tabSquareCircle" class="active" onclick="switchArrivalTab('square_circle')">□〇入荷管理</button>
+    <button id="tabHType" onclick="switchArrivalTab('h_type')">H関係入荷管理</button>
+  </div>
+  <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
+  <div class="toolbar">
+    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
+    <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
+  </div>
+  <div class="toolbar" style="background:#eef2f6;padding:10px 12px;border-radius:6px;">
+    <label style="font-weight:bold;font-size:13px;">📅 引取り計画の自動割り振り：いつまでに受け入れるか</label>
+    <input type="date" id="planDeadlineInput" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+    <button class="btn btn-primary" onclick="calculateArrivalPlan()">計算して「引取り時期」に書き込む</button>
+    <span id="planResultText" style="font-size:13px;color:#1a3a5c;font-weight:bold;"></span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+    <tr>
+      <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
+      <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
+      <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th><th>重量(Kg)</th>
+      <th>指示書</th><th>受入ヤード</th><th>運送会社</th><th>操作</th>
+    </tr>
+    </thead>
+    <tbody id="arrivalBody">
+      <tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
 
-app.get('/api/projects', async (req, res) => {
-  const { data, error } = await supabase
-    .from('projects').select('*').eq('status', 'active').order('id', { ascending: true });
-  if (error) { console.error('GET /api/projects:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
+</div><!-- /content -->
+
+<!-- 物件登録モーダル -->
+<div id="addModal" class="modal">
+<div class="modal-box">
+  <h3 id="addModalTitle">新規物件登録</h3>
+  <input type="hidden" id="editId">
+  <div class="form-group">
+    <label>物件コード</label>
+    <input id="f_code" type="text" placeholder="例：2024-001">
+  </div>
+  <div class="form-group">
+    <label>物件名 <span style="color:red">*</span></label>
+    <input id="f_name" type="text" placeholder="物件名を入力">
+  </div>
+  <div class="form-group">
+    <label>得意先名</label>
+    <input id="f_client" type="text" placeholder="得意先名を入力">
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('addModal')">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveProject()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- 明細追加・編集モーダル -->
+<div id="addItemModal" class="modal">
+<div class="modal-box">
+  <h3 id="itemModalTitle">明細追加</h3>
+  <input type="hidden" id="editItemId">
+  <div class="form-row">
+    <div class="form-group"><label>通しNo</label><input id="i_seq" type="text"></div>
+    <div class="form-group"><label>商社</label><input id="i_trading" type="text"></div>
+    <div class="form-group"><label>メーカー</label><input id="i_maker" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>暫定納期</label><input id="i_delivery" type="text" placeholder="例：4/末～、5/中旬"></div>
+    <div class="form-group"><label>工区部位</label><input id="i_section" type="text"></div>
+    <div class="form-group"><label>契約No</label><input id="i_contract" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>鋼種</label><input id="i_steel" type="text"></div>
+    <div class="form-group"><label>サイズ</label><input id="i_size" type="text"></div>
+    <div class="form-group"><label>規格</label><input id="i_standard" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>長さ(mm)</label><input id="i_length" type="text"></div>
+    <div class="form-group"><label>員数</label><input id="i_qty" type="text"></div>
+    <div class="form-group"><label>重量(Kg)</label><input id="i_weight" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>向け先</label><input id="i_dest" type="text"></div>
+    <div class="form-group"><label>受入ヤード</label>
+      <select id="i_yard">
+        <option value="A棟">A棟</option>
+        <option value="D棟">D棟</option>
+      </select>
+    </div>
+    <div class="form-group"><label>入荷本数</label><input id="i_arrived" type="text" value="0"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
+    <div class="form-group"><label>未入荷重量(Kg)</label><input id="i_pending_weight" type="text" value="0"></div>
+    <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeModal('addItemModal')">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveItem()">保存</button>
+  </div>
+</div>
+</div>
+
+<!-- Excel貼り付けモーダル -->
+<div id="pasteModal" class="modal">
+<div class="modal-box wide">
+  <h3>📋 Excelから貼り付けて登録</h3>
+
+  <!-- Step1: 貼り付け -->
+  <div id="pasteStep1">
+    <p style="margin-bottom:8px;font-size:13px;color:#555;">「ロール材」シートのヘッダー行を除くデータ範囲（21列分）をコピーして貼り付けてください。</p>
+    <div class="form-group">
+      <label>貼り付けエリア</label>
+      <textarea id="pasteArea" style="height:200px;font-size:12px;font-family:monospace;" placeholder="ここにExcelからコピーしたデータを貼り付けてください..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('pasteModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="previewPaste()">内容を確認する →</button>
+    </div>
+  </div>
+
+  <!-- Step2: プレビュー -->
+  <div id="pasteStep2" style="display:none;">
+    <p id="pastePreviewCount" style="margin-bottom:8px;font-size:13px;font-weight:bold;color:#1a3a5c;"></p>
+    <div class="preview-table-wrap">
+      <table id="pastePreviewTable"></table>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="backToPaste()">← 戻る</button>
+      <button class="btn btn-excel" onclick="registerPaste()">この内容で登録する</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ===== ページ切り替え =====
+function showPage(page, btn) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('page-' + page).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (page === 'zaizai') loadProjectSelector();
+  if (page === 'trash') loadTrash();
+  if (page === 'arrival') loadArrivalSchedules();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.modal').forEach(function(m) {
+  m.addEventListener('click', function(e) {
+    if (e.target === m) m.classList.remove('open');
+  });
 });
 
-app.get('/api/projects/trash', async (req, res) => {
-  const { data, error } = await supabase
-    .from('projects').select('*').eq('status', 'deleted').order('id', { ascending: true });
-  if (error) { console.error('GET /api/projects/trash:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
+// ===== 物件マスター =====
+document.getElementById('btnNewProject').addEventListener('click', function() {
+  document.getElementById('addModalTitle').textContent = '新規物件登録';
+  document.getElementById('editId').value = '';
+  document.getElementById('f_code').value = '';
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_client').value = '';
+  document.getElementById('addModal').classList.add('open');
 });
 
-app.post('/api/projects', async (req, res) => {
-  const { data, error } = await supabase.from('projects').insert([req.body]).select();
-  if (error) { console.error('POST /api/projects:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data && data[0] ? data[0] : { success: true });
-});
+function openEditModal(p) {
+  document.getElementById('addModalTitle').textContent = '物件編集';
+  document.getElementById('editId').value = p.id;
+  document.getElementById('f_code').value = p.project_code || '';
+  document.getElementById('f_name').value = p.project_name || '';
+  document.getElementById('f_client').value = p.client_name || '';
+  document.getElementById('addModal').classList.add('open');
+}
 
-app.put('/api/projects/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { data, error } = await supabase.from('projects').update(req.body).eq('id', id).select();
-  if (error) { console.error('PUT /api/projects/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data && data[0] ? data[0] : { success: true });
-});
+async function saveProject() {
+  var id = document.getElementById('editId').value;
+  var projectName = document.getElementById('f_name').value.trim();
+  if (!projectName) { alert('物件名を入力してください'); return; }
+  var body = {
+    project_code: document.getElementById('f_code').value.trim(),
+    project_name: projectName,
+    client_name: document.getElementById('f_client').value.trim()
+  };
+  if (!id) body.status = 'active';
+  var url = id ? '/api/projects/' + id : '/api/projects';
+  var method = id ? 'PUT' : 'POST';
+  try {
+    var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (res.ok) { closeModal('addModal'); loadProjects(); }
+    else { var err = await res.json().catch(function(){return{};}); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
 
-// 物件に紐づく全関連テーブルを削除するヘルパー
-// 将来テーブルが増えたら RELATED_TABLES に追加するだけでOK
-const RELATED_TABLES = [
-  'order_items',
-  // 'arrival_records',   // 入荷管理（追加予定）
-  // 'mill_sheets',       // ミルシート（追加予定）
-  // 'invoices',          // 請求（追加予定）
-  // 'connections',       // 取合（追加予定）
-  // 'inventory',         // 在庫（追加予定）
-];
+async function deleteProject(id, name) {
+  if (!confirm('「' + name + '」をゴミ箱に移動しますか？')) return;
+  try {
+    var res = await fetch('/api/projects/' + id, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'deleted' })
+    });
+    if (res.ok) { loadProjects(); }
+    else { var err = await res.json().catch(function(){return{};}); alert('削除失敗: ' + (err.error || 'ステータスコード ' + res.status)); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
 
-async function deleteProjectCascade(projectId) {
-  for (const table of RELATED_TABLES) {
-    const { error } = await supabase.from(table).delete().eq('project_id', projectId);
-    if (error) throw new Error(table + ' の削除失敗: ' + error.message);
+async function archiveProject(id, name) {
+  if (!confirm('「' + name + '」を完了にしますか？\n完了にすると一覧から非表示になります。')) return;
+  try {
+    var res = await fetch('/api/projects/' + id, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'archived' })
+    });
+    if (res.ok) { loadProjects(); }
+    else { alert('更新失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function loadProjects() {
+  var tbody = document.getElementById('projectBody');
+  try {
+    var res = await fetch('/api/projects');
+    if (!res.ok) {
+      var err = await res.json().catch(function(){return{};});
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc3545;padding:20px;">エラー: ' + (err.error || 'サーバーエラー') + '</td></tr>';
+      return;
+    }
+    var data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">物件データがありません</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(function(p, i) {
+      var createdAt = p.created_at ? p.created_at.slice(0, 10) : '';
+      var safeName = (p.project_name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + (p.project_code || '') + '</td>' +
+        '<td>' + (p.project_name || '') + '</td>' +
+        '<td>' + (p.client_name || '') + '</td>' +
+        '<td>' + createdAt + '</td>' +
+        '<td>' +
+          '<button class="btn btn-secondary" onclick=\'openEditModal(' + JSON.stringify(p) + ')\'>編集</button> ' +
+          '<button class="btn btn-success" onclick="archiveProject(' + p.id + ',\'' + safeName + '\')">完了</button> ' +
+          '<button class="btn btn-danger" onclick="deleteProject(' + p.id + ',\'' + safeName + '\')">削除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc3545;padding:20px;">サーバーに接続できません。サーバーを起動してください。</td></tr>';
   }
 }
 
-app.delete('/api/projects/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
+// ===== ゴミ箱 =====
+async function loadTrash() {
+  var tbody = document.getElementById('trashBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  updateTrashSelection();
   try {
-    await deleteProjectCascade(id);
-    const { error } = await supabase.from('projects').delete().eq('id', id);
-    if (error) throw new Error(error.message);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('DELETE /api/projects/' + id + ':', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ===== 明細 =====
-
-app.get('/api/order-items/:projectId', async (req, res) => {
-  const { data, error } = await supabase
-    .from('order_items').select('*').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
-  if (error) { console.error('GET /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
-});
-
-app.post('/api/order-items', async (req, res) => {
-  const { data, error } = await supabase.from('order_items').insert([req.body]).select();
-  if (error) { console.error('POST /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data && data[0] ? data[0] : { success: true });
-});
-
-app.put('/api/order-items/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { data, error } = await supabase.from('order_items').update(req.body).eq('id', id).select();
-  if (error) { console.error('PUT /api/order-items/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data && data[0] ? data[0] : { success: true });
-});
-
-app.delete('/api/order-items/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { error } = await supabase.from('order_items').delete().eq('id', id);
-  if (error) { console.error('DELETE /api/order-items/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  res.json({ success: true });
-});
-
-app.post('/api/order-items/bulk', async (req, res) => {
-  const { project_id, items, mode } = req.body;
-  if (mode === 'replace') {
-    const { error: deleteError } = await supabase.from('order_items').delete().eq('project_id', project_id);
-    if (deleteError) return res.status(500).json({ error: deleteError.message });
-  }
-  const rows = items.map(item => ({ ...item, project_id }));
-  const { data, error } = await supabase.from('order_items').insert(rows).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true, count: data.length });
-});
-
-// ===== 入荷管理 =====
-
-// 入荷予定を全件取得する窓口（全物件横断・発注明細と物件情報も一緒に取得）
-app.get('/api/arrival-schedules', async (req, res) => {
-  const { data, error } = await supabase
-    .from('arrival_schedules')
-    .select('*, order_items(*, projects(project_name))')
-    .order('id', { ascending: true });
-  if (error) { console.error('GET /api/arrival-schedules:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
-});
-
-// メーカー→運送会社の対応表を取得する窓口
-app.get('/api/carriers-master', async (req, res) => {
-  const { data, error } = await supabase
-    .from('carriers_master').select('*').order('id', { ascending: true });
-  if (error) { console.error('GET /api/carriers-master:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
-});
-
-// メーカー名・契約Noから運送会社を自動判定するヘルパー
-async function resolveCarrier(maker, contractNo) {
-  if (!maker) return null;
-  // 東京製鉄は契約Noの末尾でミルが変わる特殊ルール
-  if (maker.indexOf('東京製鉄') !== -1) {
-    const c = contractNo || '';
-    if (c.indexOf('宇') !== -1) return '宇都宮';
-    if (c.indexOf('12号') !== -1) return '12号地';
-    return null;
-  }
-  const { data, error } = await supabase
-    .from('carriers_master').select('default_carrier').eq('maker_name', maker).maybeSingle();
-  if (error || !data) return null;
-  return data.default_carrier;
-}
-
-// 入荷予定（arrival_schedules）の1行を、実績（arrivals）に反映するヘルパー
-// 入荷日・入荷本数の両方が入っている行だけを対象に、対応する実績行を作成・更新する
-// すでに実績行がある場合（schedule_idで判定）は新規作成せず上書き更新する
-async function syncScheduleToArrivals(scheduleRow) {
-  if (!scheduleRow || !scheduleRow.arrival_date || scheduleRow.arrival_qty === null || scheduleRow.arrival_qty === undefined) {
-    return;
-  }
-  try {
-    const { data: oi } = await supabase
-      .from('order_items').select('project_id').eq('id', scheduleRow.order_item_id).maybeSingle();
-    const { data: existing } = await supabase
-      .from('arrivals').select('id').eq('schedule_id', scheduleRow.id).maybeSingle();
-    const payload = {
-      order_item_id: scheduleRow.order_item_id,
-      project_id: oi ? oi.project_id : null,
-      arrival_date: scheduleRow.arrival_date,
-      arrived_qty: scheduleRow.arrival_qty,
-      schedule_id: scheduleRow.id,
-    };
-    if (existing) {
-      await supabase.from('arrivals').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('arrivals').insert([payload]);
+    var res = await fetch('/api/projects/trash');
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>'; return; }
+    var data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">ゴミ箱は空です</td></tr>';
+      document.getElementById('trashCheckAll').checked = false;
+      return;
     }
+    tbody.innerHTML = data.map(function(p, i) {
+      var createdAt = p.created_at ? p.created_at.slice(0, 10) : '';
+      var safeName = (p.project_name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return '<tr id="trash-row-' + p.id + '">' +
+        '<td><input type="checkbox" class="trash-check" value="' + p.id + '" onchange="updateTrashSelection()"></td>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + (p.project_code || '') + '</td>' +
+        '<td>' + (p.project_name || '') + '</td>' +
+        '<td>' + (p.client_name || '') + '</td>' +
+        '<td>' + createdAt + '</td>' +
+        '<td>' +
+          '<button class="btn btn-restore" onclick="restoreProject(' + p.id + ',\'' + safeName + '\')">元に戻す</button> ' +
+          '<button class="btn btn-danger" onclick="permanentDeleteOne(' + p.id + ',\'' + safeName + '\')">完全削除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
   } catch (e) {
-    console.error('syncScheduleToArrivals:', e.message);
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc3545;padding:20px;">サーバーに接続できません</td></tr>';
   }
 }
 
-// 発注明細の行を選んで「入荷管理に追加」する窓口
-// order_item_ids（配列）を受け取り、それぞれに対応する入荷管理の行を1件ずつ作成する
-// 既に登録済みの明細はスキップする（誤って2回登録してしまうのを防ぐため）
-app.post('/api/arrival-schedules', async (req, res) => {
-  const { order_item_ids } = req.body;
-  if (!Array.isArray(order_item_ids) || order_item_ids.length === 0) {
-    return res.status(400).json({ error: '対象の明細が選択されていません' });
-  }
-  try {
-    const { data: existing, error: existingError } = await supabase
-      .from('arrival_schedules').select('order_item_id').in('order_item_id', order_item_ids);
-    if (existingError) throw new Error(existingError.message);
-    const alreadyRegistered = new Set((existing || []).map(r => r.order_item_id));
-    const targetIds = order_item_ids.filter(id => !alreadyRegistered.has(id));
-    const skipped = order_item_ids.length - targetIds.length;
-
-    if (targetIds.length === 0) {
-      return res.json({ success: true, count: 0, skipped: skipped });
-    }
-
-    const { data: items, error: itemsError } = await supabase
-      .from('order_items').select('*').in('id', targetIds);
-    if (itemsError) throw new Error(itemsError.message);
-
-    const rows = [];
-    for (const item of items) {
-      // 資材部管理画面で運送会社が入力済みならそれを優先。未入力の場合のみ従来通りcarriers_masterから自動判定する
-      const carrier = item.carrier || await resolveCarrier(item.maker, item.contract_no);
-      rows.push({
-        order_item_id: item.id,
-        contract_no: item.contract_no,
-        shipping_company: carrier,
-      });
-    }
-    const { data, error } = await supabase.from('arrival_schedules').insert(rows).select();
-    if (error) throw new Error(error.message);
-    res.json({ success: true, count: data.length, skipped: skipped });
-  } catch (e) {
-    console.error('POST /api/arrival-schedules:', e.message);
-    res.status(500).json({ error: e.message });
-  }
+document.getElementById('trashCheckAll').addEventListener('change', function() {
+  var checked = this.checked;
+  document.querySelectorAll('.trash-check').forEach(function(cb) {
+    cb.checked = checked;
+    var row = cb.closest('tr');
+    if (row) row.classList.toggle('selected-row', checked);
+  });
+  updateTrashSelection();
 });
 
-// 分納対応：既存の入荷予定行をもとに、同じ契約のもう1行を追加する
-// （引取り時期・運送会社は引き継ぎ、入荷予定日・本数・指示書などは空の状態で新しく作る）
-app.post('/api/arrival-schedules/:id/split', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  try {
-    const { data: original, error: getError } = await supabase
-      .from('arrival_schedules').select('*').eq('id', id).maybeSingle();
-    if (getError) throw new Error(getError.message);
-    if (!original) return res.status(404).json({ error: '元の行が見つかりません' });
-
-    const newRow = {
-      order_item_id: original.order_item_id,
-      contract_no: original.contract_no,
-      pickup_period: original.pickup_period,
-      shipping_company: original.shipping_company,
-    };
-    const { data, error } = await supabase.from('arrival_schedules').insert([newRow]).select();
-    if (error) throw new Error(error.message);
-    res.json(data && data[0] ? data[0] : { success: true });
-  } catch (e) {
-    console.error('POST /api/arrival-schedules/:id/split:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.put('/api/arrival-schedules/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { data, error } = await supabase.from('arrival_schedules').update(req.body).eq('id', id).select();
-  if (error) { console.error('PUT /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  const updatedRow = data && data[0] ? data[0] : null;
-  if (updatedRow) await syncScheduleToArrivals(updatedRow);
-  res.json(updatedRow || { success: true });
-});
-
-app.delete('/api/arrival-schedules/:id', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: '無効なIDです' });
-  const { error } = await supabase.from('arrival_schedules').delete().eq('id', id);
-  if (error) { console.error('DELETE /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
-  res.json({ success: true });
-});
-
-// 入荷管理データを全件削除する窓口（テストデータの整理用）
-app.delete('/api/arrival-schedules-all', async (req, res) => {
-  const { error } = await supabase.from('arrival_schedules').delete().neq('id', 0);
-  if (error) { console.error('DELETE /api/arrival-schedules-all:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json({ success: true });
-});
-
-// ===== 引取り計画の自動割り振り =====
-
-// 固定の連休カレンダー（月日のみで判定。年は問わない）
-// [開始月, 開始日, 終了月, 終了日]
-const FIXED_HOLIDAY_RANGES = [
-  [4, 29, 5, 5],   // ゴールデンウィーク
-  [8, 13, 8, 16],  // お盆
-  [12, 29, 12, 31], // 年末
-  [1, 1, 1, 3],     // 年始
-];
-
-function isHolidayDate(date) {
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
-  return FIXED_HOLIDAY_RANGES.some(([sm, sd, em, ed]) => {
-    if (sm === em) return m === sm && d >= sd && d <= ed;
-    // 月をまたぐ範囲（年末年始は使わないが念のため対応）
-    if (sm < em) return (m === sm && d >= sd) || (m === em && d <= ed) || (m > sm && m < em);
-    return false;
+function updateTrashSelection() {
+  var checks = document.querySelectorAll('.trash-check:checked');
+  var badge = document.getElementById('trashSelectedCount');
+  if (checks.length > 0) { badge.textContent = checks.length + '件選択中'; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+  document.querySelectorAll('.trash-check').forEach(function(cb) {
+    var row = cb.closest('tr');
+    if (row) row.classList.toggle('selected-row', cb.checked);
   });
 }
 
-function toDateOnly(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function addDays(date, days) {
-  const r = new Date(date);
-  r.setDate(r.getDate() + days);
-  return r;
-}
-
-function formatMD(date) {
-  return (date.getMonth() + 1) + '/' + date.getDate();
-}
-
-// 今日から指定の締切日までの「稼働週（月～金で稼働日が2日以上ある週）」一覧を作る
-function buildWorkingWeeks(today, deadline) {
-  const start = toDateOnly(today);
-  const end = toDateOnly(deadline);
-  // 今週の月曜日を求める
-  const dow = start.getDay(); // 0=日,1=月,...6=土
-  const mondayOffset = dow === 0 ? -6 : 1 - dow;
-  let monday = addDays(start, mondayOffset);
-  const weeks = [];
-  while (monday <= end) {
-    const friday = addDays(monday, 4);
-    let workDays = 0;
-    for (let i = 0; i < 5; i++) {
-      const day = addDays(monday, i);
-      if (day < start) continue; // 今日より前の日は数えない
-      if (day > end) continue;
-      if (!isHolidayDate(day)) workDays++;
-    }
-    if (workDays >= 2) {
-      weeks.push({ start: monday, end: friday, label: formatMD(monday) + '～' + formatMD(friday) });
-    }
-    monday = addDays(monday, 7);
-  }
-  return weeks;
-}
-
-// 入荷予定日が未入力（まだ出荷案内が来ていない）行に、引取り時期を自動で割り振る
-app.post('/api/arrival-schedules/calculate-plan', async (req, res) => {
-  const { deadline } = req.body;
-  if (!deadline) return res.status(400).json({ error: '締切日が指定されていません' });
+async function restoreProject(id, name) {
+  if (!confirm('「' + name + '」を物件マスターに戻しますか？')) return;
   try {
-    const { data: all, error } = await supabase
-      .from('arrival_schedules').select('*, order_items(*)').order('id', { ascending: true });
-    if (error) throw new Error(error.message);
+    var res = await fetch('/api/projects/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: 'active' }) });
+    if (res.ok) { loadTrash(); } else { alert('復元失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
 
-    // order_item_id ごとにグループ化し、「まだ案内が来ていない分」の重量を計算する
-    const groups = {};
-    for (const row of all) {
-      const oid = row.order_item_id;
-      if (!groups[oid]) groups[oid] = { orderItem: row.order_items, rows: [] };
-      groups[oid].rows.push(row);
-    }
+async function permanentDeleteOne(id, name) {
+  if (!confirm('「' + name + '」を完全に削除しますか？\nこの操作は元に戻せません。')) return;
+  try {
+    var res = await fetch('/api/projects/' + id, { method: 'DELETE' });
+    if (res.ok) { loadTrash(); } else { alert('削除失敗'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
 
-    const assignments = []; // { scheduleId, weight }
-    for (const oid in groups) {
-      const g = groups[oid];
-      const oi = g.orderItem;
-      if (!oi || !oi.quantity) continue;
-      const notifiedQty = g.rows
-        .filter(r => r.arrival_date)
-        .reduce((sum, r) => sum + (Number(r.arrival_qty) || 0), 0);
-      const pendingRows = g.rows.filter(r => !r.arrival_date).sort((a, b) => a.id - b.id);
-      if (pendingRows.length === 0) continue;
-      const remainingQty = Math.max(0, Number(oi.quantity) - notifiedQty);
-      if (remainingQty <= 0) continue;
-      const remainingWeight = (Number(oi.weight_kg) || 0) * (remainingQty / Number(oi.quantity));
-      assignments.push({ scheduleId: pendingRows[0].id, weight: remainingWeight });
-    }
+async function permanentDeleteSelected() {
+  var checks = document.querySelectorAll('.trash-check:checked');
+  if (checks.length === 0) { alert('削除する物件を選択してください'); return; }
+  if (!confirm(checks.length + '件を完全に削除しますか？\nこの操作は元に戻せません。')) return;
+  var ids = Array.from(checks).map(function(cb) { return cb.value; });
+  var failed = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try { var res = await fetch('/api/projects/' + ids[i], { method: 'DELETE' }); if (!res.ok) failed++; }
+    catch (e) { failed++; }
+  }
+  if (failed > 0) alert(failed + '件の削除に失敗しました');
+  document.getElementById('trashCheckAll').checked = false;
+  loadTrash();
+}
 
-    if (assignments.length === 0) {
-      return res.json({ success: true, updatedCount: 0, message: '対象となる行がありませんでした（すべて入荷予定日が入力済みです）' });
-    }
+// ===== 資材部管理 =====
+var currentProjectId = null;
 
-    assignments.sort((a, b) => a.scheduleId - b.scheduleId);
+async function loadProjectSelector() {
+  try {
+    var res = await fetch('/api/projects');
+    if (!res.ok) return;
+    var data = await res.json();
+    if (!Array.isArray(data)) return;
+    var sel = document.getElementById('projectSelect');
+    sel.innerHTML = '<option value="">-- 物件を選択してください --</option>' +
+      data.map(function(p) { return '<option value="' + p.id + '">' + (p.project_name || '') + '</option>'; }).join('');
+  } catch (e) {}
+}
 
-    const today = new Date();
-    const deadlineDate = new Date(deadline + 'T00:00:00');
-    const weeks = buildWorkingWeeks(today, deadlineDate);
-    if (weeks.length === 0) {
-      return res.status(400).json({ error: '指定された期間内に、稼働できる週がありませんでした' });
-    }
+// 数値フィールド一覧
+var NUM_FIELDS = ['length_mm','quantity','weight_kg','arrived_qty','pending_qty','pending_weight_kg'];
 
-    const totalWeight = assignments.reduce((sum, a) => sum + a.weight, 0);
-    const weeklyTarget = totalWeight / weeks.length;
+function ed(id, field, val, extraClass) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  var cls = 'editable' + (extraClass ? ' ' + extraClass : '');
+  return '<td class="' + cls + '" onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
 
-    // 週ごとに目標重量に達するまで順番に詰めていく
-    let weekIndex = 0;
-    let currentWeekTotal = 0;
-    for (const a of assignments) {
-      if (currentWeekTotal > 0 && (currentWeekTotal + a.weight) > weeklyTarget && weekIndex < weeks.length - 1) {
-        weekIndex++;
-        currentWeekTotal = 0;
-      }
-      a.weekLabel = weeks[weekIndex].label;
-      currentWeekTotal += a.weight;
-    }
+function edNum(id, field, val, cls) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  var clsAttr = cls ? ' class="editable ' + cls + '"' : ' class="editable"';
+  return '<td' + clsAttr + ' onclick="makeEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
 
-    // 1件ずつ更新する
-    let updatedCount = 0;
-    for (const a of assignments) {
-      const { error: updateError } = await supabase
-        .from('arrival_schedules').update({ pickup_period: a.weekLabel }).eq('id', a.scheduleId);
-      if (!updateError) updatedCount++;
-    }
+// 受入ヤード（A棟／D棟）：クリックで切り替える
+function yardCell(d) {
+  var yard = d.yard || 'A棟';
+  var isD = yard === 'D棟';
+  var style = isD ? 'color:#fff;background:#dc3545;font-weight:bold;cursor:pointer;text-align:center;' : 'cursor:pointer;text-align:center;color:#555;';
+  var next = isD ? 'A棟' : 'D棟';
+  return '<td onclick="toggleYard(' + d.id + ',\'' + next + '\')" style="' + style + '">' + yard + '</td>';
+}
 
-    res.json({
-      success: true,
-      updatedCount: updatedCount,
-      totalWeight: Math.round(totalWeight),
-      weeksCount: weeks.length,
-      weeklyTarget: Math.round(weeklyTarget),
+async function toggleYard(id, newValue) {
+  try {
+    var res = await fetch('/api/order-items/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yard: newValue })
     });
+    if (res.ok) { loadOrderItems(); } else { alert('更新に失敗しました'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+var currentOrderItems = [];
+
+// 選択中の明細ID（フィルターを切り替えても消えないように、画面の外側で覚えておく）
+var selectedOrderItemIds = new Set();
+
+function updateSelectedCountBadge() {
+  var badge = document.getElementById('selectedCountBadge');
+  if (!badge) return;
+  if (selectedOrderItemIds.size > 0) {
+    badge.textContent = selectedOrderItemIds.size + '件選択中';
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleRowSelection(checkbox) {
+  var id = Number(checkbox.getAttribute('data-id'));
+  if (checkbox.checked) { selectedOrderItemIds.add(id); }
+  else { selectedOrderItemIds.delete(id); }
+  updateSelectedCountBadge();
+}
+
+function clearRowSelection() {
+  selectedOrderItemIds.clear();
+  document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = false; });
+  document.getElementById('selectAllRows').checked = false;
+  updateSelectedCountBadge();
+}
+
+function renderOrderRows(data) {
+  var tbody = document.getElementById('orderBody');
+  if (!Array.isArray(data) || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(function(d) {
+    var delivery = d.tentative_delivery || '';
+    var checkedAttr = selectedOrderItemIds.has(d.id) ? ' checked' : '';
+    return '<tr>' +
+      '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"' + checkedAttr + ' onchange="toggleRowSelection(this)"></td>' +
+      ed(d.id, 'seq_no', d.seq_no, 'col-frozen') +
+      ed(d.id, 'trading_company', d.trading_company) +
+      ed(d.id, 'maker', d.maker) +
+      ed(d.id, 'tentative_delivery', delivery) +
+      ed(d.id, 'section', d.section) +
+      ed(d.id, 'contract_no', d.contract_no) +
+      ed(d.id, 'steel_type', d.steel_type) +
+      ed(d.id, 'size', d.size) +
+      ed(d.id, 'standard', d.standard) +
+      edNum(d.id, 'length_mm', d.length_mm, '') +
+      edNum(d.id, 'quantity', d.quantity, '') +
+      edNum(d.id, 'weight_kg', d.weight_kg, '') +
+      ed(d.id, 'destination', d.destination) +
+      yardCell(d) +
+      edNum(d.id, 'arrived_qty', d.arrived_qty, 'arrived') +
+      edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
+      edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
+      ed(d.id, 'notes', d.notes) +
+      '<td>' +
+        '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
+        '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function toggleSelectAll(checkbox) {
+  document.querySelectorAll('.row-check').forEach(function(cb) {
+    cb.checked = checkbox.checked;
+    var id = Number(cb.getAttribute('data-id'));
+    if (checkbox.checked) { selectedOrderItemIds.add(id); }
+    else { selectedOrderItemIds.delete(id); }
+  });
+  updateSelectedCountBadge();
+}
+
+function copySelectedRows() {
+  if (selectedOrderItemIds.size === 0) { alert('コピーする行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
+  var rows = ids.map(function(id) { return currentOrderItems.find(function(d) { return d.id === id; }); }).filter(Boolean);
+  var text = rows.map(function(d) {
+    return PASTE_COL_MAP.map(function(m) {
+      var v = d[m.field];
+      return (v === null || v === undefined) ? '' : String(v);
+    }).join('\t');
+  }).join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    alert(rows.length + '行をコピーしました');
+  }).catch(function() {
+    alert('コピーに失敗しました。お使いのブラウザがクリップボード機能に対応していない可能性があります。');
+  });
+}
+
+async function setSelectedYard(yardValue) {
+  if (selectedOrderItemIds.size === 0) { alert('変更する行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
+  if (!confirm(ids.length + '件を「' + yardValue + '」に変更しますか？')) return;
+  var failed = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try {
+      var res = await fetch('/api/order-items/' + ids[i], {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yard: yardValue })
+      });
+      if (!res.ok) failed++;
+    } catch (e) { failed++; }
+  }
+  if (failed > 0) alert(failed + '件の更新に失敗しました');
+  loadOrderItems();
+}
+
+async function addSelectedToArrival() {
+  if (selectedOrderItemIds.size === 0) { alert('入荷管理に追加する行を選んでください'); return; }
+  var ids = Array.from(selectedOrderItemIds);
+  if (!confirm(ids.length + '件を入荷管理に追加しますか？')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_item_ids: ids })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      var msg = result.count + '件を入荷管理に追加しました。';
+      if (result.skipped > 0) msg += '（' + result.skipped + '件は既に登録済みのためスキップしました）';
+      msg += '「入荷管理」タブで確認できます。';
+      alert(msg);
+      clearRowSelection();
+    } else {
+      alert('追加に失敗しました: ' + (result.error || ''));
+    }
   } catch (e) {
-    console.error('POST /api/arrival-schedules/calculate-plan:', e.message);
-    res.status(500).json({ error: e.message });
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+function getActiveFilters(excludeField) {
+  var selects = document.querySelectorAll('.filter-select');
+  var active = [];
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    var v = sel.value;
+    if (v !== '' && field !== excludeField) active.push({ field: field, value: v });
+  });
+  return active;
+}
+
+function updateFilterOptions() {
+  var selects = document.querySelectorAll('.filter-select');
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    var prevValue = sel.value;
+    var others = getActiveFilters(field);
+    var subset = currentOrderItems.filter(function(d) {
+      return others.every(function(f) { return String(d[f.field]) === f.value; });
+    });
+    var isNum = NUM_FIELDS.indexOf(field) !== -1;
+    var values = [];
+    var seen = {};
+    subset.forEach(function(d) {
+      var v = d[field];
+      if (v === null || v === undefined || v === '') return;
+      var key = String(v);
+      if (!seen[key]) { seen[key] = true; values.push(v); }
+    });
+    if (isNum) {
+      values.sort(function(a, b) { return Number(a) - Number(b); });
+    } else {
+      values.sort(function(a, b) { return String(a).localeCompare(String(b), 'ja'); });
+    }
+    var html = '<option value="">(すべて)</option>';
+    values.forEach(function(v) {
+      html += '<option value="' + String(v).replace(/"/g, '&quot;') + '">' + v + '</option>';
+    });
+    sel.innerHTML = html;
+    if (seen[prevValue]) sel.value = prevValue;
+  });
+}
+
+function populateFilters(data) {
+  updateFilterOptions();
+}
+
+function applyFilters() {
+  var active = getActiveFilters(null);
+  var filtered = currentOrderItems.filter(function(d) {
+    return active.every(function(f) { return String(d[f.field]) === f.value; });
+  });
+  renderOrderRows(filtered);
+  updateFilterOptions();
+}
+
+function updateHeaderHeight() {
+  var headerRow = document.querySelector('#page-zaizai thead tr');
+  if (headerRow) {
+    document.documentElement.style.setProperty('--header-h', headerRow.offsetHeight + 'px');
+  }
+}
+document.addEventListener('mousedown', function(e) {
+  if (e.target.closest('table')) {
+    document.body.classList.add('selecting');
   }
 });
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+document.addEventListener('mouseup', function() {
+  document.body.classList.remove('selecting');
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log('サーバー起動中 ポート:' + PORT);
-});
+window.addEventListener('load', updateHeaderHeight);
+window.addEventListener('resize', updateHeaderHeight);
+
+async function loadOrderItems() {
+  var sel = document.getElementById('projectSelect');
+  currentProjectId = sel.value;
+  var addBtn = document.getElementById('addItemBtn');
+  var pasteBtn = document.getElementById('pasteBtn');
+  var tbody = document.getElementById('orderBody');
+  selectedOrderItemIds.clear();
+  updateSelectedCountBadge();
+  if (!currentProjectId) {
+    currentOrderItems = [];
+    populateFilters([]);
+    tbody.innerHTML = '';
+    addBtn.style.display = 'none';
+    pasteBtn.style.display = 'none';
+    document.getElementById('copySelectedBtn').style.display = 'none';
+    document.getElementById('addToArrivalBtn').style.display = 'none';
+    document.getElementById('clearSelectionBtn').style.display = 'none';
+    document.getElementById('setYardDBtn').style.display = 'none';
+    document.getElementById('setYardBBtn').style.display = 'none';
+    return;
+  }
+  addBtn.style.display = 'inline-block';
+  pasteBtn.style.display = 'inline-block';
+  document.getElementById('copySelectedBtn').style.display = 'inline-block';
+  document.getElementById('addToArrivalBtn').style.display = 'inline-block';
+  document.getElementById('clearSelectionBtn').style.display = 'inline-block';
+  document.getElementById('setYardDBtn').style.display = 'inline-block';
+  document.getElementById('setYardBBtn').style.display = 'inline-block';
+  try {
+    var res = await fetch('/api/order-items/' + currentProjectId);
+    var data = await res.json();
+    if (!Array.isArray(data)) data = [];
+    currentOrderItems = data;
+    populateFilters(currentOrderItems);
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
+      return;
+    }
+    applyFilters();
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+  }
+}
+
+// ===== インライン編集 =====
+function makeEditable(td, id, field) {
+  if (td.querySelector('input')) return; // 既に編集中
+  var originalText = td.textContent.trim();
+  var input = document.createElement('input');
+  input.className = 'inline-input';
+  input.type = 'text';
+  input.value = originalText;
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  var action = 'save';
+  var done = false;
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { action = 'cancel'; input.blur(); }
+  });
+
+  input.addEventListener('blur', async function() {
+    if (done) return;
+    done = true;
+    var newText = input.value.trim();
+    if (action === 'cancel' || newText === originalText) {
+      td.textContent = originalText;
+      return;
+    }
+    var body = {};
+    if (NUM_FIELDS.indexOf(field) !== -1) {
+      body[field] = newText === '' ? null : parseFloat(newText.replace(/,/g, ''));
+    } else {
+      body[field] = newText || null;
+    }
+    try {
+      var res = await fetch('/api/order-items/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        td.textContent = newText;
+      } else {
+        var err = await res.json().catch(function(){return{};});
+        alert('更新失敗: ' + (err.error || '不明なエラー'));
+        td.textContent = originalText;
+      }
+    } catch (e) {
+      alert('通信エラー: ' + e.message);
+      td.textContent = originalText;
+    }
+  });
+}
+
+// ===== 明細モーダル =====
+function openAddItemModal() {
+  document.getElementById('itemModalTitle').textContent = '明細追加';
+  document.getElementById('editItemId').value = '';
+  ['i_seq','i_trading','i_maker','i_delivery','i_section','i_contract',
+   'i_steel','i_size','i_standard','i_length','i_qty','i_weight',
+   'i_dest','i_note'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('i_arrived').value = '0';
+  document.getElementById('i_pending').value = '0';
+  document.getElementById('i_pending_weight').value = '0';
+  document.getElementById('i_yard').value = 'A棟';
+  document.getElementById('addItemModal').classList.add('open');
+}
+
+function openEditItemModal(d) {
+  document.getElementById('itemModalTitle').textContent = '明細編集';
+  document.getElementById('editItemId').value = d.id;
+  document.getElementById('i_seq').value = d.seq_no || '';
+  document.getElementById('i_trading').value = d.trading_company || '';
+  document.getElementById('i_maker').value = d.maker || '';
+  document.getElementById('i_delivery').value = d.tentative_delivery || '';
+  document.getElementById('i_section').value = d.section || '';
+  document.getElementById('i_contract').value = d.contract_no || '';
+  document.getElementById('i_steel').value = d.steel_type || '';
+  document.getElementById('i_size').value = d.size || '';
+  document.getElementById('i_standard').value = d.standard || '';
+  document.getElementById('i_length').value = d.length_mm !== null && d.length_mm !== undefined ? d.length_mm : '';
+  document.getElementById('i_qty').value = d.quantity !== null && d.quantity !== undefined ? d.quantity : '';
+  document.getElementById('i_weight').value = d.weight_kg !== null && d.weight_kg !== undefined ? d.weight_kg : '';
+  document.getElementById('i_dest').value = d.destination || '';
+  document.getElementById('i_yard').value = d.yard || 'A棟';
+  document.getElementById('i_arrived').value = d.arrived_qty !== null && d.arrived_qty !== undefined ? d.arrived_qty : 0;
+  document.getElementById('i_pending').value = d.pending_qty !== null && d.pending_qty !== undefined ? d.pending_qty : 0;
+  document.getElementById('i_pending_weight').value = d.pending_weight_kg !== null && d.pending_weight_kg !== undefined ? d.pending_weight_kg : 0;
+  document.getElementById('i_note').value = d.notes || '';
+  document.getElementById('addItemModal').classList.add('open');
+}
+
+async function saveItem() {
+  var id = document.getElementById('editItemId').value;
+  var body = {
+    project_id: currentProjectId,
+    seq_no: document.getElementById('i_seq').value || null,
+    trading_company: document.getElementById('i_trading').value || null,
+    maker: document.getElementById('i_maker').value || null,
+    tentative_delivery: document.getElementById('i_delivery').value || null,
+    section: document.getElementById('i_section').value || null,
+    contract_no: document.getElementById('i_contract').value || null,
+    steel_type: document.getElementById('i_steel').value || null,
+    size: document.getElementById('i_size').value || null,
+    standard: document.getElementById('i_standard').value || null,
+    length_mm: document.getElementById('i_length').value ? parseFloat(document.getElementById('i_length').value.replace(/,/g,'')) : null,
+    quantity: document.getElementById('i_qty').value ? parseFloat(document.getElementById('i_qty').value.replace(/,/g,'')) : null,
+    weight_kg: document.getElementById('i_weight').value ? parseFloat(document.getElementById('i_weight').value.replace(/,/g,'')) : null,
+    destination: document.getElementById('i_dest').value || null,
+    yard: document.getElementById('i_yard').value || 'A棟',
+    arrived_qty: parseInt(document.getElementById('i_arrived').value.replace(/,/g,'')) || 0,
+    pending_qty: parseInt(document.getElementById('i_pending').value.replace(/,/g,'')) || 0,
+    pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value.replace(/,/g,'')) : null,
+    notes: document.getElementById('i_note').value || null
+  };
+  var url = id ? '/api/order-items/' + id : '/api/order-items';
+  var method = id ? 'PUT' : 'POST';
+  try {
+    var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (res.ok) { closeModal('addItemModal'); loadOrderItems(); }
+    else { var err = await res.json().catch(function(){return{};}); alert('保存失敗: ' + (err.error || '不明なエラー')); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteItem(id) {
+  if (!confirm('この明細を削除しますか？')) return;
+  try {
+    var res = await fetch('/api/order-items/' + id, { method: 'DELETE' });
+    if (res.ok) loadOrderItems(); else alert('削除失敗');
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ===== Excel貼り付け一括登録 =====
+
+// 17列の連番マッピング（0始まり）- 事前に17列に整形済みのExcelを貼り付ける運用
+var PASTE_COL_MAP = [
+  { col: 0,  field: 'seq_no',            label: '通しNo' },
+  { col: 1,  field: 'trading_company',   label: '商社' },
+  { col: 2,  field: 'maker',             label: 'メーカー' },
+  { col: 3,  field: 'tentative_delivery',label: '暫定納期' },
+  { col: 4,  field: 'section',           label: '工区部位' },
+  { col: 5,  field: 'contract_no',       label: '契約No' },
+  { col: 6,  field: 'steel_type',        label: '鋼種' },
+  { col: 7,  field: 'size',              label: 'サイズ' },
+  { col: 8,  field: 'standard',          label: '規格' },
+  { col: 9,  field: 'length_mm',         label: '長さ(mm)' },
+  { col: 10, field: 'quantity',          label: '員数' },
+  { col: 11, field: 'weight_kg',         label: '重量(Kg)' },
+  { col: 12, field: 'destination',       label: '向け先' },
+  { col: 13, field: 'arrived_qty',       label: '入荷本数' },
+  { col: 14, field: 'pending_qty',       label: '未入荷本数' },
+  { col: 15, field: 'pending_weight_kg', label: '未入荷重量(Kg)' },
+  { col: 16, field: 'notes',             label: '備考' },
+];
+
+var pasteItems = [];
+
+function openPasteModal() {
+  if (!currentProjectId) { alert('物件を先に選択してください'); return; }
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('pasteStep1').style.display = 'block';
+  document.getElementById('pasteStep2').style.display = 'none';
+  pasteItems = [];
+  document.getElementById('pasteModal').classList.add('open');
+}
+
+function previewPaste() {
+  var text = document.getElementById('pasteArea').value;
+  if (!text.trim()) { alert('データを貼り付けてください'); return; }
+
+  var lines = text.split('\n');
+  pasteItems = [];
+
+  lines.forEach(function(line) {
+    if (!line.trim()) return;
+    var cols = line.split('\t');
+    var item = {};
+    PASTE_COL_MAP.forEach(function(m) {
+      var val = cols[m.col] !== undefined ? cols[m.col].trim() : '';
+      if (NUM_FIELDS.indexOf(m.field) !== -1) {
+        item[m.field] = val === '' ? null : Number(val.replace(/,/g, ''));
+      } else {
+        item[m.field] = val || null;
+      }
+    });
+    // 全フィールドが空の行はスキップ
+    var hasVal = PASTE_COL_MAP.some(function(m) { return item[m.field] !== null && item[m.field] !== ''; });
+    if (!hasVal) return;
+    pasteItems.push(item);
+  });
+
+  if (pasteItems.length === 0) { alert('有効なデータが見つかりませんでした'); return; }
+
+  // プレビューテーブル生成
+  var thead = '<thead><tr>' + PASTE_COL_MAP.map(function(m) { return '<th>' + m.label + '</th>'; }).join('') + '</tr></thead>';
+  var tbody = '<tbody>' + pasteItems.map(function(item) {
+    return '<tr>' + PASTE_COL_MAP.map(function(m) {
+      var v = item[m.field];
+      return '<td>' + (v !== null && v !== undefined ? v : '') + '</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+
+  document.getElementById('pastePreviewTable').innerHTML = thead + tbody;
+  document.getElementById('pastePreviewCount').textContent = pasteItems.length + ' 行のデータを確認してください';
+  document.getElementById('pasteStep1').style.display = 'none';
+  document.getElementById('pasteStep2').style.display = 'block';
+}
+
+function backToPaste() {
+  document.getElementById('pasteStep1').style.display = 'block';
+  document.getElementById('pasteStep2').style.display = 'none';
+}
+
+async function registerPaste() {
+  if (!currentProjectId) { alert('物件を選択してください'); return; }
+  if (pasteItems.length === 0) { alert('登録するデータがありません'); return; }
+  try {
+    // mode を指定しない → 追記（既存データを消さない）
+    var res = await fetch('/api/order-items/bulk', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ project_id: currentProjectId, items: pasteItems })
+    });
+    if (res.ok) {
+      var result = await res.json();
+      closeModal('pasteModal');
+      loadOrderItems();
+      alert(result.count + ' 件登録しました');
+    } else {
+      var err = await res.json().catch(function(){return{};});
+      alert('登録失敗: ' + (err.error || '不明なエラー'));
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ===== 入荷管理 =====
+var currentArrivalSchedules = [];
+var currentArrivalCategory = 'square_circle'; // 表示中のタブ（square_circle = □〇 / h_type = H関係）
+
+// 鋼種から「□〇」グループか「H関係」グループかを判定する
+// どちらにも当てはまらない場合は 'other'（両方のタブに表示する）
+function categorizeSteelType(steelType) {
+  var t = (steelType || '').trim();
+  if (t === '□' || t === '〇') return 'square_circle';
+  if (t === 'H' || t === '外H' || t === 'BH' || t === 'TH') return 'h_type';
+  return 'other';
+}
+
+function switchArrivalTab(tab) {
+  currentArrivalCategory = tab;
+  document.getElementById('tabSquareCircle').classList.toggle('active', tab === 'square_circle');
+  document.getElementById('tabHType').classList.toggle('active', tab === 'h_type');
+  document.getElementById('arrivalTitle').textContent = (tab === 'square_circle') ? '□〇入荷管理' : 'H関係入荷管理';
+  renderArrivalRows(currentArrivalSchedules);
+}
+
+function arrivalEd(id, field, val, isDate) {
+  var v = (val !== null && val !== undefined) ? String(val) : '';
+  return '<td class="editable" onclick="makeArrivalEditable(this,' + id + ',\'' + field + '\')">' + v + '</td>';
+}
+
+// プレーンな（編集不可の）セル。blank=trueなら空欄で表示する
+function plainCell(text, blank) {
+  return '<td>' + (blank ? '' : (text || '')) + '</td>';
+}
+
+// 受入ヤードの表示（D棟は目立つ表示にする）
+function yardDisplayCell(yard, blank) {
+  if (blank) return '<td></td>';
+  var v = yard || 'A棟';
+  if (v === 'D棟') return '<td style="color:#fff;background:#dc3545;font-weight:bold;text-align:center;">D棟</td>';
+  return '<td style="text-align:center;color:#555;">' + v + '</td>';
+}
+
+function renderArrivalRows(rawData) {
+  var tbody = document.getElementById('arrivalBody');
+  // 選んでいるタブ（□〇 / H関係）に合う行だけを表示する。判定できない鋼種は両方のタブに表示する
+  var data = (Array.isArray(rawData) ? rawData : []).filter(function(d) {
+    var oi = d.order_items || {};
+    var cat = categorizeSteelType(oi.steel_type);
+    return cat === currentArrivalCategory || cat === 'other';
+  });
+  if (!Array.isArray(data) || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
+    return;
+  }
+  // 契約全体のうち「すでに案内が来た分」の本数を、order_item_idごとに集計する（重量の計算に使う）
+  var notifiedQtyMap = {};
+  data.forEach(function(d) {
+    if (d.arrival_date) {
+      var oid = d.order_item_id;
+      notifiedQtyMap[oid] = (notifiedQtyMap[oid] || 0) + (Number(d.arrival_qty) || 0);
+    }
+  });
+
+  function calcRowWeight(d, oi) {
+    if (!oi.quantity || !oi.weight_kg) return '';
+    var qty;
+    if (d.arrival_date) {
+      qty = Number(d.arrival_qty) || 0;
+    } else {
+      qty = Math.max(0, Number(oi.quantity) - (notifiedQtyMap[d.order_item_id] || 0));
+    }
+    var w = Number(oi.weight_kg) * (qty / Number(oi.quantity));
+    return Math.round(w);
+  }
+
+  // 同じ契約（order_item_id）の分納行をまとめて表示するため、order_item_id順に並べ替える
+  var sorted = data.slice().sort(function(a, b) {
+    if (a.order_item_id !== b.order_item_id) return a.order_item_id - b.order_item_id;
+    return a.id - b.id;
+  });
+  var prevOrderItemId = null;
+  tbody.innerHTML = sorted.map(function(d) {
+    var oi = d.order_items || {};
+    var projectName = (oi.projects && oi.projects.project_name) || '';
+    var instructionChecked = d.instruction_done ? '済' : '未';
+    var instructionStyle = d.instruction_done ? 'color:#28a745;font-weight:bold;cursor:pointer;' : 'color:#dc3545;font-weight:bold;cursor:pointer;';
+    // 同じ契約の2行目以降（分納行）は、共通項目を空欄にして見やすくする
+    var isSplitRow = (prevOrderItemId !== null && prevOrderItemId === d.order_item_id);
+    prevOrderItemId = d.order_item_id;
+    var html = '<tr data-contract="' + (d.contract_no || '').toLowerCase() + '">' +
+      arrivalEd(d.id, 'pickup_period', isSplitRow ? '' : d.pickup_period) +
+      arrivalEd(d.id, 'arrival_date', d.arrival_date) +
+      arrivalEd(d.id, 'arrival_qty', d.arrival_qty) +
+      plainCell(projectName, isSplitRow) +
+      plainCell(oi.seq_no, isSplitRow) +
+      plainCell(oi.trading_company, isSplitRow) +
+      plainCell(oi.maker, isSplitRow) +
+      plainCell(oi.section, isSplitRow) +
+      plainCell(d.contract_no, isSplitRow) +
+      plainCell(oi.steel_type, isSplitRow) +
+      plainCell(oi.size, isSplitRow) +
+      plainCell(oi.quantity, isSplitRow) +
+      plainCell(calcRowWeight(d, oi), false) +
+      '<td onclick="toggleInstruction(' + d.id + ',' + (!d.instruction_done) + ')" style="' + instructionStyle + '">' + instructionChecked + '</td>' +
+      yardDisplayCell(oi.yard, isSplitRow) +
+      arrivalEd(d.id, 'shipping_company', isSplitRow ? '' : d.shipping_company) +
+      '<td>' +
+        '<button class="btn btn-secondary" onclick="splitArrivalRow(' + d.id + ')">＋分納</button> ' +
+        '<button class="btn btn-danger" onclick="deleteArrivalRow(' + d.id + ')">削除</button>' +
+      '</td>' +
+    '</tr>';
+    return html;
+  }).join('');
+}
+
+async function loadArrivalSchedules() {
+  var tbody = document.getElementById('arrivalBody');
+  tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  try {
+    var res = await fetch('/api/arrival-schedules');
+    var data = await res.json();
+    if (!Array.isArray(data)) data = [];
+    currentArrivalSchedules = data;
+    renderArrivalRows(data);
+    document.getElementById('arrivalSearchInput').value = '';
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+  }
+}
+
+// 契約Noで絞り込む（部分一致・大文字小文字を区別しない）
+function filterArrivalRows() {
+  var keyword = document.getElementById('arrivalSearchInput').value.trim().toLowerCase();
+  if (keyword === '') {
+    renderArrivalRows(currentArrivalSchedules);
+    return;
+  }
+  var filtered = currentArrivalSchedules.filter(function(d) {
+    return (d.contract_no || '').toLowerCase().indexOf(keyword) !== -1;
+  });
+  renderArrivalRows(filtered);
+}
+
+// 日付の入力欄（年を省略して「7/14」のように書いても自動で年を補う）
+var DATE_FIELDS = ['arrival_date', 'shipping_requested_date'];
+
+function parseFlexibleDate(text) {
+  text = text.trim();
+  if (text === '') return { ok: true, value: null, display: '' };
+  // すでに「2026-07-14」や「2026/7/14」の形式
+  var full = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (full) {
+    var y = Number(full[1]), m = Number(full[2]), d = Number(full[3]);
+    return finalizeDate(y, m, d, text);
+  }
+  // 「7/14」「7-14」のように年を省略した形式
+  var short = text.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (short) {
+    var m2 = Number(short[1]), d2 = Number(short[2]);
+    var now = new Date();
+    var year = now.getFullYear();
+    // 入力された月日が「今日より2か月以上前」なら、来年のことだと判断する
+    var candidate = new Date(year, m2 - 1, d2);
+    var diffDays = (candidate - now) / (1000 * 60 * 60 * 24);
+    if (diffDays < -60) year += 1;
+    return finalizeDate(year, m2, d2, m2 + '/' + d2);
+  }
+  return { ok: false };
+}
+
+function finalizeDate(y, m, d, display) {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return { ok: false };
+  var mm = String(m).padStart(2, '0');
+  var dd = String(d).padStart(2, '0');
+  return { ok: true, value: y + '-' + mm + '-' + dd, display: display };
+}
+
+function makeArrivalEditable(td, id, field) {
+  if (td.querySelector('input')) return;
+  var originalText = td.textContent.trim();
+  var input = document.createElement('input');
+  input.className = 'inline-input';
+  input.type = 'text';
+  input.value = originalText;
+  if (DATE_FIELDS.indexOf(field) !== -1) input.placeholder = '例：7/14';
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  var action = 'save';
+  var done = false;
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { action = 'cancel'; input.blur(); }
+  });
+
+  input.addEventListener('blur', async function() {
+    if (done) return;
+    done = true;
+    var newText = input.value.trim();
+    if (action === 'cancel' || newText === originalText) {
+      td.textContent = originalText;
+      return;
+    }
+    var body = {};
+    var displayText = newText;
+    if (DATE_FIELDS.indexOf(field) !== -1) {
+      var parsed = parseFlexibleDate(newText);
+      if (!parsed.ok) {
+        td.textContent = originalText;
+        alert('日付の形式が正しくありません。「7/14」または「2026/7/14」のように入力してください。');
+        return;
+      }
+      body[field] = parsed.value;
+      displayText = newText === '' ? '' : parsed.value;
+    } else if (field === 'arrival_qty') {
+      if (newText === '') {
+        body[field] = null;
+      } else {
+        var num = Number(newText.replace(/,/g, ''));
+        if (isNaN(num)) {
+          td.textContent = originalText;
+          alert('入荷予定本数は数字で入力してください');
+          return;
+        }
+        body[field] = num;
+      }
+    } else {
+      body[field] = newText === '' ? null : newText;
+    }
+    try {
+      var res = await fetch('/api/arrival-schedules/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        td.textContent = displayText;
+      } else {
+        td.textContent = originalText;
+        alert('更新に失敗しました');
+      }
+    } catch (e) {
+      td.textContent = originalText;
+      alert('通信エラー: ' + e.message);
+    }
+  });
+}
+
+async function toggleInstruction(id, newValue) {
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instruction_done: newValue })
+    });
+    if (res.ok) {
+      loadArrivalSchedules();
+    } else {
+      alert('更新に失敗しました');
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteArrivalRow(id) {
+  if (!confirm('この入荷予定行を削除しますか？')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id, { method: 'DELETE' });
+    if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function splitArrivalRow(id) {
+  try {
+    var res = await fetch('/api/arrival-schedules/' + id + '/split', { method: 'POST' });
+    if (res.ok) {
+      loadArrivalSchedules();
+    } else {
+      alert('分納行の追加に失敗しました');
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function deleteAllArrivalRows() {
+  if (!confirm('入荷管理の全データを削除します。よろしいですか？\n（この操作は元に戻せません。テストデータの整理用です）')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules-all', { method: 'DELETE' });
+    if (res.ok) { loadArrivalSchedules(); } else { alert('削除に失敗しました'); }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+async function calculateArrivalPlan() {
+  var deadline = document.getElementById('planDeadlineInput').value;
+  if (!deadline) { alert('「いつまでに受け入れるか」の日付を指定してください'); return; }
+  if (!confirm('入荷予定日が未入力の行に、引取り時期を自動で割り振ります。\n既存の「引取り時期」は上書きされます。よろしいですか？')) return;
+  var resultEl = document.getElementById('planResultText');
+  resultEl.textContent = '計算中...';
+  try {
+    var res = await fetch('/api/arrival-schedules/calculate-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deadline: deadline })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      if (result.updatedCount === 0) {
+        resultEl.textContent = result.message || '対象データがありませんでした';
+      } else {
+        resultEl.textContent = '合計' + result.totalWeight + 'Kg を ' + result.weeksCount + '週に割り振りました（1週あたり目安：約' + result.weeklyTarget + 'Kg）';
+      }
+      loadArrivalSchedules();
+    } else {
+      resultEl.textContent = '';
+      alert('計算に失敗しました: ' + (result.error || ''));
+    }
+  } catch (e) {
+    resultEl.textContent = '';
+    alert('通信エラー: ' + e.message);
+  }
+}
+
+// 起動時に物件一覧を読み込む
+loadProjects();
+</script>
+</body>
+</html>
