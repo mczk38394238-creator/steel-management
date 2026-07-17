@@ -1116,39 +1116,7 @@ async function deleteItem(id) {
 // ===== 入荷管理：Excel貼り付け一括登録 =====
 // 貼り付けデータの列順は、資材部管理画面「Excel出力」の出力形式と対応させている：
 // [0]id [1]工事名 [2〜21]PASTE_COL_MAP（通しNo〜変更内容の20項目） [22]入荷予定日 [23]入荷予定本数
-// 日付の表記ゆれ（「7月25日」「7/25」「2026/7/25」など）を、データベースが理解できる
-// 「YYYY-MM-DD」形式に変換する。年が書かれていない場合は今日から見て近い方の年を自動で補う
-function parseFlexibleDate(str) {
-  if (!str) return null;
-  var s = String(str).trim();
-  var m;
-  // 既に正しい形式（2026-07-25 / 2026/7/25）
-  m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-  if (m) return toIsoDate(Number(m[1]), Number(m[2]), Number(m[3]));
-  // 「7月25日」形式
-  m = s.match(/^(\d{1,2})月(\d{1,2})日$/);
-  if (m) return toIsoDate(guessYear(Number(m[1])), Number(m[1]), Number(m[2]));
-  // 「7/25」形式
-  m = s.match(/^(\d{1,2})[\/](\d{1,2})$/);
-  if (m) return toIsoDate(guessYear(Number(m[1])), Number(m[1]), Number(m[2]));
-  return null; // どのパターンにも当てはまらない場合は変換できないとみなす
-
-  // 年が書かれていない月日から、今日に近い方の年を推測する
-  // （今日より2ヶ月以上前になる場合は来年の日付とみなす）
-  function guessYear(month) {
-    var today = new Date();
-    var year = today.getFullYear();
-    var candidate = new Date(year, month - 1, 1);
-    var diffMonths = (candidate.getFullYear() - today.getFullYear()) * 12 + (candidate.getMonth() - today.getMonth());
-    if (diffMonths < -1) year += 1;
-    return year;
-  }
-  function toIsoDate(y, mo, d) {
-    var mm = String(mo).padStart(2, '0');
-    var dd = String(d).padStart(2, '0');
-    return y + '-' + mm + '-' + dd;
-  }
-}
+// 日付の変換処理は、下にある既存のparseFlexibleDate関数（入荷予定日の直接編集でも使われているもの）を共用する
 
 var arrivalPasteRows = [];
 
@@ -1176,13 +1144,15 @@ function previewArrivalPaste() {
     var idVal = (cols[0] || '').trim();
     if (!idVal) return; // idが空の行はスキップ
     var rawDate = (cols[DATE_COL] || '').trim();
+    var parsed = rawDate ? parseFlexibleDate(rawDate) : { ok: true, value: null };
     arrivalPasteRows.push({
       order_item_id: Number(idVal.replace(/,/g, '')),
       project_name: (cols[PROJECT_COL] || '').trim(),
       seq_no: (cols[2] || '').trim(),
       contract_no: (cols[7] || '').trim(),
       arrival_date_raw: rawDate,
-      arrival_date: rawDate ? parseFlexibleDate(rawDate) : null,
+      arrival_date_ok: parsed.ok,
+      arrival_date: parsed.ok ? parsed.value : null,
       arrival_qty: (cols[QTY_COL] || '').trim() || null
     });
   });
@@ -1190,14 +1160,14 @@ function previewArrivalPaste() {
   if (arrivalPasteRows.length === 0) { alert('有効なデータが見つかりませんでした（id列が空の行はスキップされます）'); return; }
 
   // 日付が読み取れなかった行がないかチェックする（元の文字は入っているのに変換できなかった場合のみ警告）
-  var badDateRows = arrivalPasteRows.filter(function(r) { return r.arrival_date_raw && !r.arrival_date; });
+  var badDateRows = arrivalPasteRows.filter(function(r) { return r.arrival_date_raw && !r.arrival_date_ok; });
   if (badDateRows.length > 0) {
     alert('入荷予定日の形式が読み取れない行が ' + badDateRows.length + ' 件あります（例：「' + badDateRows[0].arrival_date_raw + '」）。\n「7/25」「7月25日」「2026-07-25」のような形式で入力し直してください。');
   }
 
   var thead = '<thead><tr><th>id</th><th>工事名</th><th>通しNo</th><th>契約No</th><th>入荷予定日</th><th>入荷予定本数</th></tr></thead>';
   var tbody = '<tbody>' + arrivalPasteRows.map(function(r) {
-    var dateDisplay = r.arrival_date_raw ? (r.arrival_date || '⚠️変換できません(' + r.arrival_date_raw + ')') : '';
+    var dateDisplay = r.arrival_date_raw ? (r.arrival_date_ok ? r.arrival_date : '⚠️変換できません(' + r.arrival_date_raw + ')') : '';
     return '<tr><td>' + r.order_item_id + '</td><td>' + r.project_name + '</td><td>' + r.seq_no + '</td><td>' + r.contract_no + '</td><td>' + dateDisplay + '</td><td>' + (r.arrival_qty || '') + '</td></tr>';
   }).join('') + '</tbody>';
 
@@ -1515,6 +1485,17 @@ function parseFlexibleDate(text) {
     var diffDays = (candidate - now) / (1000 * 60 * 60 * 24);
     if (diffDays < -60) year += 1;
     return finalizeDate(year, m2, d2, m2 + '/' + d2);
+  }
+  // 「7月14日」のように漢字で書かれた形式（Excelが日付を自動整形するとこの表記になることがある）
+  var kanji = text.match(/^(\d{1,2})月(\d{1,2})日$/);
+  if (kanji) {
+    var m3 = Number(kanji[1]), d3 = Number(kanji[2]);
+    var now3 = new Date();
+    var year3 = now3.getFullYear();
+    var candidate3 = new Date(year3, m3 - 1, d3);
+    var diffDays3 = (candidate3 - now3) / (1000 * 60 * 60 * 24);
+    if (diffDays3 < -60) year3 += 1;
+    return finalizeDate(year3, m3, d3, m3 + '/' + d3);
   }
   return { ok: false };
 }
