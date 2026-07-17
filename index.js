@@ -80,9 +80,23 @@ app.delete('/api/projects/:id', async (req, res) => {
 
 app.get('/api/order-items/:projectId', async (req, res) => {
   const { data, error } = await supabase
-    .from('order_items').select('*').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
+    .from('order_items').select('*, arrival_schedules(id)').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
   if (error) { console.error('GET /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
   res.json(data || []);
+});
+
+// 固定：手配が完了した明細を「固定済み」にする（対象物件でまだ固定していない行をまとめて固定）
+app.post('/api/order-items/fix', async (req, res) => {
+  const { project_id } = req.body;
+  if (!project_id) return res.status(400).json({ error: '物件が選択されていません' });
+  const { data, error } = await supabase
+    .from('order_items')
+    .update({ is_fixed: true, fixed_at: new Date().toISOString() })
+    .eq('project_id', project_id)
+    .eq('is_fixed', false)
+    .select();
+  if (error) { console.error('POST /api/order-items/fix:', error.message); return res.status(500).json({ error: error.message }); }
+  res.json({ success: true, count: (data || []).length });
 });
 
 app.post('/api/order-items', async (req, res) => {
