@@ -196,6 +196,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
+    <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
   <div class="toolbar" style="background:#eef2f6;padding:10px 12px;border-radius:6px;">
@@ -328,6 +329,38 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <button class="btn btn-excel" id="registerPasteBtn" onclick="registerPaste()">この内容で登録する</button>
     </div>
   </div>
+</div>
+
+<!-- 入荷管理：Excel貼り付けモーダル -->
+<div id="arrivalPasteModal" class="modal">
+<div class="modal-box wide">
+  <h3>📋 入荷管理へ Excelから貼り付けて登録</h3>
+
+  <!-- Step1: 貼り付け -->
+  <div id="arrivalPasteStep1">
+    <p style="margin-bottom:8px;font-size:13px;color:#555;">資材部管理画面の「Excel出力」で出力した範囲（id・工事名を含む全列＋末尾に入荷予定日・入荷予定本数を記入したもの）を、ヘッダー行を除いて貼り付けてください。</p>
+    <div class="form-group">
+      <label>貼り付けエリア</label>
+      <textarea id="arrivalPasteArea" style="height:200px;font-size:12px;font-family:monospace;" placeholder="ここにExcelからコピーしたデータを貼り付けてください..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('arrivalPasteModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="previewArrivalPaste()">内容を確認する →</button>
+    </div>
+  </div>
+
+  <!-- Step2: プレビュー -->
+  <div id="arrivalPasteStep2" style="display:none;">
+    <p id="arrivalPastePreviewCount" style="margin-bottom:8px;font-size:13px;font-weight:bold;color:#1a3a5c;"></p>
+    <div class="preview-table-wrap">
+      <table id="arrivalPastePreviewTable"></table>
+    </div>
+    <div class="modal-footer" style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="backToArrivalPaste()">← 戻る</button>
+      <button class="btn btn-excel" id="registerArrivalPasteBtn" onclick="registerArrivalPaste()">この内容で登録する</button>
+    </div>
+  </div>
+</div>
 </div>
 </div>
 
@@ -767,23 +800,27 @@ async function fixOrderItems() {
   } catch (e) { alert('通信エラー: ' + e.message); }
 }
 
-// 「固定済み」かつ「まだ入荷管理に渡していない」明細だけを、id列付きでクリップボードにコピーする
+// 「固定済み」かつ「まだ入荷管理に渡していない」明細だけを、id・工事名付きでクリップボードにコピーする
+// 末尾に「入荷予定日」「入荷予定本数」の空欄も用意し、後藤部長がExcel上で書き込んでから
+// そのまま入荷管理画面の貼り付け欄へコピペできるようにする
 function exportFixedToExcel() {
   var targets = currentOrderItems.filter(function(d) {
     var transferred = Array.isArray(d.arrival_schedules) && d.arrival_schedules.length > 0;
     return d.is_fixed && !transferred;
   });
   if (targets.length === 0) { alert('出力対象（固定済み・未移行）の明細がありません'); return; }
-  var header = 'id\t' + PASTE_COL_MAP.map(function(m) { return m.label; }).join('\t');
+  var sel = document.getElementById('projectSelect');
+  var projectName = (sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || '';
+  var header = 'id\t工事名\t' + PASTE_COL_MAP.map(function(m) { return m.label; }).join('\t') + '\t入荷予定日\t入荷予定本数';
   var lines = targets.map(function(d) {
-    return d.id + '\t' + PASTE_COL_MAP.map(function(m) {
+    return d.id + '\t' + projectName + '\t' + PASTE_COL_MAP.map(function(m) {
       var v = d[m.field];
       return (v === null || v === undefined) ? '' : String(v);
-    }).join('\t');
+    }).join('\t') + '\t\t';
   });
   var text = header + '\n' + lines.join('\n');
   navigator.clipboard.writeText(text).then(function() {
-    alert(targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列は入荷管理画面への貼り付け時に使う照合用の列です。消さずにそのまま扱ってください）');
+    alert(targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列と「工事名」列は入荷管理画面への貼り付け時に使う照合・区別用の列です。消さずにそのまま扱ってください。末尾の「入荷予定日」「入荷予定本数」を埋めてから、入荷管理画面に貼り付けてください）');
   }, function() {
     alert('コピーに失敗しました。ブラウザの権限設定をご確認ください。');
   });
@@ -1074,6 +1111,89 @@ async function deleteItem(id) {
     var res = await fetch('/api/order-items/' + id, { method: 'DELETE' });
     if (res.ok) loadOrderItems(); else alert('削除失敗');
   } catch (e) { alert('通信エラー: ' + e.message); }
+}
+
+// ===== 入荷管理：Excel貼り付け一括登録 =====
+// 貼り付けデータの列順は、資材部管理画面「Excel出力」の出力形式と対応させている：
+// [0]id [1]工事名 [2〜21]PASTE_COL_MAP（通しNo〜変更内容の20項目） [22]入荷予定日 [23]入荷予定本数
+var arrivalPasteRows = [];
+
+function openArrivalPasteModal() {
+  document.getElementById('arrivalPasteArea').value = '';
+  document.getElementById('arrivalPasteStep1').style.display = 'block';
+  document.getElementById('arrivalPasteStep2').style.display = 'none';
+  arrivalPasteRows = [];
+  document.getElementById('arrivalPasteModal').classList.add('open');
+}
+
+function previewArrivalPaste() {
+  var text = document.getElementById('arrivalPasteArea').value;
+  if (!text.trim()) { alert('データを貼り付けてください'); return; }
+
+  var lines = text.split('\n');
+  arrivalPasteRows = [];
+  var PROJECT_COL = 1;
+  var DATE_COL = 2 + PASTE_COL_MAP.length;
+  var QTY_COL = DATE_COL + 1;
+
+  lines.forEach(function(line) {
+    if (!line.trim()) return;
+    var cols = line.split('\t');
+    var idVal = (cols[0] || '').trim();
+    if (!idVal) return; // idが空の行はスキップ
+    arrivalPasteRows.push({
+      order_item_id: Number(idVal.replace(/,/g, '')),
+      project_name: (cols[PROJECT_COL] || '').trim(),
+      seq_no: (cols[2] || '').trim(),
+      contract_no: (cols[7] || '').trim(),
+      arrival_date: (cols[DATE_COL] || '').trim() || null,
+      arrival_qty: (cols[QTY_COL] || '').trim() || null
+    });
+  });
+
+  if (arrivalPasteRows.length === 0) { alert('有効なデータが見つかりませんでした（id列が空の行はスキップされます）'); return; }
+
+  var thead = '<thead><tr><th>id</th><th>工事名</th><th>通しNo</th><th>契約No</th><th>入荷予定日</th><th>入荷予定本数</th></tr></thead>';
+  var tbody = '<tbody>' + arrivalPasteRows.map(function(r) {
+    return '<tr><td>' + r.order_item_id + '</td><td>' + r.project_name + '</td><td>' + r.seq_no + '</td><td>' + r.contract_no + '</td><td>' + (r.arrival_date || '') + '</td><td>' + (r.arrival_qty || '') + '</td></tr>';
+  }).join('') + '</tbody>';
+
+  document.getElementById('arrivalPastePreviewTable').innerHTML = thead + tbody;
+  document.getElementById('arrivalPastePreviewCount').textContent = arrivalPasteRows.length + ' 行のデータを確認してください';
+  document.getElementById('arrivalPasteStep1').style.display = 'none';
+  document.getElementById('arrivalPasteStep2').style.display = 'block';
+}
+
+function backToArrivalPaste() {
+  document.getElementById('arrivalPasteStep1').style.display = 'block';
+  document.getElementById('arrivalPasteStep2').style.display = 'none';
+}
+
+async function registerArrivalPaste() {
+  if (arrivalPasteRows.length === 0) { alert('登録するデータがありません'); return; }
+  var btn = document.getElementById('registerArrivalPasteBtn');
+  var originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 処理中...'; }
+  try {
+    var res = await fetch('/api/arrival-schedules/paste', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: arrivalPasteRows.map(function(r) {
+        return { order_item_id: r.order_item_id, arrival_date: r.arrival_date, arrival_qty: r.arrival_qty };
+      }) })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      closeModal('arrivalPasteModal');
+      loadArrivalSchedules();
+      alert(result.count + ' 件登録しました');
+    } else {
+      alert('登録失敗:\n' + (result.error || '不明なエラー'));
+    }
+  } catch (e) { alert('通信エラー: ' + e.message); }
+  finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 
 // ===== Excel貼り付け一括登録 =====
