@@ -257,6 +257,52 @@ app.post('/api/arrival-schedules', async (req, res) => {
   }
 });
 
+// 資材部管理画面から出力したExcelを、入荷管理画面に貼り付けて一括登録する窓口
+// rows: [{ order_item_id, arrival_date, arrival_qty }, ...]
+// id列（order_item_id）が1件でもorder_itemsに存在しない場合は、登録を全体ブロックしてエラーを返す
+app.post('/api/arrival-schedules/paste', async (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: '登録するデータがありません' });
+  }
+  try {
+    const ids = rows.map(r => r.order_item_id);
+    const { data: items, error: itemsError } = await supabase
+      .from('order_items').select('*').in('id', ids);
+    if (itemsError) throw new Error(itemsError.message);
+
+    const itemMap = {};
+    (items || []).forEach(item => { itemMap[item.id] = item; });
+
+    // 1件でも資材部管理画面のデータに存在しないidがあれば、その回の登録を丸ごとブロックする
+    const invalidIds = ids.filter(id => !itemMap[id]);
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        error: 'IDが一致しない行があります（' + invalidIds.length + '件）。資材部管理画面から出力しなおしてください。 不一致のid: ' + invalidIds.join(', ')
+      });
+    }
+
+    const newRows = [];
+    for (const r of rows) {
+      const item = itemMap[r.order_item_id];
+      const carrier = item.carrier || await resolveCarrier(item.maker, item.contract_no);
+      newRows.push({
+        order_item_id: item.id,
+        contract_no: item.contract_no,
+        shipping_company: carrier,
+        arrival_date: r.arrival_date || null,
+        arrival_qty: r.arrival_qty !== null && r.arrival_qty !== undefined && r.arrival_qty !== '' ? Number(r.arrival_qty) : null,
+      });
+    }
+    const { data, error } = await supabase.from('arrival_schedules').insert(newRows).select();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, count: data.length });
+  } catch (e) {
+    console.error('POST /api/arrival-schedules/paste:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // 分納対応：既存の入荷予定行をもとに、同じ契約のもう1行を追加する
 // （引取り時期・運送会社は引き継ぎ、入荷予定日・本数・指示書などは空の状態で新しく作る）
 app.post('/api/arrival-schedules/:id/split', async (req, res) => {
