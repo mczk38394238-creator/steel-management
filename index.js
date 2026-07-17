@@ -109,14 +109,30 @@ app.delete('/api/order-items/:id', async (req, res) => {
 
 app.post('/api/order-items/bulk', async (req, res) => {
   const { project_id, items, mode } = req.body;
-  if (mode === 'replace') {
-    const { error: deleteError } = await supabase.from('order_items').delete().eq('project_id', project_id);
-    if (deleteError) return res.status(500).json({ error: deleteError.message });
+  try {
+    // 処理開始：「処理中」フラグを立てる（他の担当者の画面にも表示される）
+    await supabase.from('projects').update({
+      import_status: 'processing',
+      import_started_at: new Date().toISOString()
+    }).eq('id', project_id);
+
+    if (mode === 'replace') {
+      const { error: deleteError } = await supabase.from('order_items').delete().eq('project_id', project_id);
+      if (deleteError) throw new Error(deleteError.message);
+    }
+    const rows = items.map(item => ({ ...item, project_id }));
+    const { data, error } = await supabase.from('order_items').insert(rows).select();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, count: data.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    // 処理終了：成功・失敗にかかわらず必ず「処理中」フラグを解除する
+    await supabase.from('projects').update({
+      import_status: null,
+      import_started_at: null
+    }).eq('id', project_id);
   }
-  const rows = items.map(item => ({ ...item, project_id }));
-  const { data, error } = await supabase.from('order_items').insert(rows).select();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true, count: data.length });
 });
 
 // ===== 入荷管理 =====
