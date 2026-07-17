@@ -148,7 +148,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th><th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>受入ヤード</th><th>運送会社</th><th>入荷本数</th><th>未入荷本数</th>
-      <th>未入荷重量(Kg)</th><th>備考</th><th>操作</th>
+      <th>未入荷重量(Kg)</th><th>備考</th><th>変更日</th><th>変更内容</th><th>操作</th>
     </tr>
     <tr id="filterRow">
       <td class="col-check"></td><td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
@@ -170,6 +170,8 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <td><select class="filter-select" data-field="pending_qty" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="pending_weight_kg" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="notes" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="change_date" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="filter-select" data-field="change_content" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td></td>
     </tr>
     </thead>
@@ -279,6 +281,10 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <div class="form-group"><label>未入荷本数</label><input id="i_pending" type="text" value="0"></div>
     <div class="form-group"><label>未入荷重量(Kg)</label><input id="i_pending_weight" type="text" value="0"></div>
     <div class="form-group"><label>備考</label><input id="i_note" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>変更日</label><input id="i_change_date" type="date"></div>
+    <div class="form-group"><label>変更内容</label><input id="i_change_content" type="text" placeholder="例：単価修正、数量変更 など"></div>
   </div>
   <div class="modal-footer">
     <button class="btn btn-secondary" onclick="closeModal('addItemModal')">キャンセル</button>
@@ -610,7 +616,7 @@ function clearRowSelection() {
 function renderOrderRows(data) {
   var tbody = document.getElementById('orderBody');
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="21" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(function(d) {
@@ -637,6 +643,8 @@ function renderOrderRows(data) {
       edNum(d.id, 'pending_qty', d.pending_qty, 'pending') +
       edNum(d.id, 'pending_weight_kg', d.pending_weight_kg, '') +
       ed(d.id, 'notes', d.notes) +
+      ed(d.id, 'change_date', d.change_date) +
+      ed(d.id, 'change_content', d.change_content) +
       '<td>' +
         '<button class="btn btn-secondary" onclick=\'openEditItemModal(' + JSON.stringify(d) + ')\'>編集</button> ' +
         '<button class="btn btn-danger" onclick="deleteItem(' + d.id + ')">削除</button>' +
@@ -825,12 +833,12 @@ async function loadOrderItems() {
     currentOrderItems = data;
     populateFilters(currentOrderItems);
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="21" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
     applyFilters();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="21" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
@@ -895,7 +903,7 @@ function openAddItemModal() {
   document.getElementById('editItemId').value = '';
   ['i_seq','i_trading','i_maker','i_delivery','i_section','i_contract',
    'i_steel','i_size','i_standard','i_length','i_qty','i_weight',
-   'i_dest','i_carrier','i_note'].forEach(function(id) { document.getElementById(id).value = ''; });
+   'i_dest','i_carrier','i_note','i_change_date','i_change_content'].forEach(function(id) { document.getElementById(id).value = ''; });
   document.getElementById('i_arrived').value = '0';
   document.getElementById('i_pending').value = '0';
   document.getElementById('i_pending_weight').value = '0';
@@ -925,6 +933,8 @@ function openEditItemModal(d) {
   document.getElementById('i_pending').value = d.pending_qty !== null && d.pending_qty !== undefined ? d.pending_qty : 0;
   document.getElementById('i_pending_weight').value = d.pending_weight_kg !== null && d.pending_weight_kg !== undefined ? d.pending_weight_kg : 0;
   document.getElementById('i_note').value = d.notes || '';
+  document.getElementById('i_change_date').value = d.change_date || '';
+  document.getElementById('i_change_content').value = d.change_content || '';
   document.getElementById('addItemModal').classList.add('open');
 }
 
@@ -950,7 +960,9 @@ async function saveItem() {
     arrived_qty: parseInt(document.getElementById('i_arrived').value.replace(/,/g,'')) || 0,
     pending_qty: parseInt(document.getElementById('i_pending').value.replace(/,/g,'')) || 0,
     pending_weight_kg: document.getElementById('i_pending_weight').value ? parseFloat(document.getElementById('i_pending_weight').value.replace(/,/g,'')) : null,
-    notes: document.getElementById('i_note').value || null
+    notes: document.getElementById('i_note').value || null,
+    change_date: document.getElementById('i_change_date').value || null,
+    change_content: document.getElementById('i_change_content').value || null
   };
   var url = id ? '/api/order-items/' + id : '/api/order-items';
   var method = id ? 'PUT' : 'POST';
@@ -991,6 +1003,8 @@ var PASTE_COL_MAP = [
   { col: 15, field: 'pending_qty',       label: '未入荷本数' },
   { col: 16, field: 'pending_weight_kg', label: '未入荷重量(Kg)' },
   { col: 17, field: 'notes',             label: '備考' },
+  { col: 18, field: 'change_date',       label: '変更日' },
+  { col: 19, field: 'change_content',    label: '変更内容' },
 ];
 
 var pasteItems = [];
