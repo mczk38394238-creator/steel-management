@@ -127,6 +127,9 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 <div id="page-zaizai" class="page">
   <h2>資材部管理画面</h2>
   <div class="note">※ 規格部「-T」は高規格材とする（弊社独自規定）。各データセルをクリックすると直接編集できます。</div>
+  <div id="importStatusBanner" style="display:none; background:#dc3545; color:#fff; font-weight:bold; padding:10px 16px; border-radius:4px; margin-bottom:10px;">
+    ⚠️ 現在、この物件のデータを別の担当者が登録処理中です。少々お待ちください（処理が終わると自動で消えます）。
+  </div>
   <div class="project-selector">
     <label>物件選択：</label>
     <select id="projectSelect" onchange="loadOrderItems()">
@@ -319,7 +322,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     </div>
     <div class="modal-footer" style="margin-top:12px;">
       <button class="btn btn-secondary" onclick="backToPaste()">← 戻る</button>
-      <button class="btn btn-excel" onclick="registerPaste()">この内容で登録する</button>
+      <button class="btn btn-excel" id="registerPasteBtn" onclick="registerPaste()">この内容で登録する</button>
     </div>
   </div>
 </div>
@@ -332,7 +335,7 @@ function showPage(page, btn) {
   document.querySelectorAll('.nav button').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('page-' + page).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (page === 'zaizai') loadProjectSelector();
+  if (page === 'zaizai') { loadProjectSelector(); startImportStatusPolling(); } else { stopImportStatusPolling(); }
   if (page === 'trash') loadTrash();
   if (page === 'arrival') loadArrivalSchedules();
 }
@@ -535,6 +538,40 @@ async function permanentDeleteSelected() {
 
 // ===== 資材部管理 =====
 var currentProjectId = null;
+
+// ===== 他の担当者による処理中フラグの確認（数秒おきに自動チェック） =====
+var importStatusPollTimer = null;
+
+function startImportStatusPolling() {
+  stopImportStatusPolling();
+  checkImportStatus();
+  importStatusPollTimer = setInterval(checkImportStatus, 4000);
+}
+
+function stopImportStatusPolling() {
+  if (importStatusPollTimer) { clearInterval(importStatusPollTimer); importStatusPollTimer = null; }
+  var banner = document.getElementById('importStatusBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+async function checkImportStatus() {
+  var banner = document.getElementById('importStatusBanner');
+  if (!banner) return;
+  if (!currentProjectId) { banner.style.display = 'none'; return; }
+  try {
+    var res = await fetch('/api/projects');
+    if (!res.ok) return;
+    var data = await res.json();
+    var proj = Array.isArray(data) ? data.find(function(p) { return String(p.id) === String(currentProjectId); }) : null;
+    var isProcessing = !!(proj && proj.import_status === 'processing');
+    banner.style.display = isProcessing ? 'block' : 'none';
+    // 処理中は誤操作防止のため主要ボタンを一時的に無効化する
+    ['addItemBtn', 'pasteBtn'].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.disabled = isProcessing;
+    });
+  } catch (e) {}
+}
 
 async function loadProjectSelector() {
   try {
@@ -801,6 +838,7 @@ window.addEventListener('resize', updateHeaderHeight);
 async function loadOrderItems() {
   var sel = document.getElementById('projectSelect');
   currentProjectId = sel.value;
+  checkImportStatus();
   var addBtn = document.getElementById('addItemBtn');
   var pasteBtn = document.getElementById('pasteBtn');
   var tbody = document.getElementById('orderBody');
@@ -1068,6 +1106,9 @@ function backToPaste() {
 async function registerPaste() {
   if (!currentProjectId) { alert('物件を選択してください'); return; }
   if (pasteItems.length === 0) { alert('登録するデータがありません'); return; }
+  var btn = document.getElementById('registerPasteBtn');
+  var originalLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 処理中...'; }
   try {
     // mode を指定しない → 追記（既存データを消さない）
     var res = await fetch('/api/order-items/bulk', {
@@ -1085,6 +1126,10 @@ async function registerPaste() {
       alert('登録失敗: ' + (err.error || '不明なエラー'));
     }
   } catch (e) { alert('通信エラー: ' + e.message); }
+  finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    checkImportStatus();
+  }
 }
 
 // ===== 入荷管理 =====
