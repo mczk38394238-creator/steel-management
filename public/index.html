@@ -6,9 +6,10 @@
 <title>望月鉄工所 鋼材管理システム</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
-.header { background: #1a3a5c; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; }
-.nav { background: #2c5f8a; display: flex; gap: 4px; padding: 8px 20px; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; display: flex; flex-direction: column; }
+.header { background: #1a3a5c; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; flex: 0 0 auto; }
+.nav { background: #2c5f8a; display: flex; gap: 4px; padding: 8px 20px; flex: 0 0 auto; }
 .nav button { background: transparent; color: #aac; border: 1px solid #4a8; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
 .nav button.active { background: #1a3a5c; color: white; border-color: #1a3a5c; }
 .nav button.trash-btn { border-color: #c84; color: #fb8; }
@@ -16,9 +17,9 @@ body { font-family: 'Meiryo', sans-serif; background: #f5f5f5; }
 .subtab { display: flex; gap: 6px; margin-bottom: 14px; }
 .subtab button { background: #fff; color: #1a3a5c; border: 1px solid #1a3a5c; padding: 8px 18px; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: bold; }
 .subtab button.active { background: #1a3a5c; color: #fff; }
-.content { padding: 20px; }
-.page { display: none; }
-.page.active { display: block; }
+.content { padding: 20px; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.page { display: none; min-height: 0; overflow: hidden; }
+.page.active { display: flex; flex-direction: column; height: 100%; }
 h2 { margin-bottom: 16px; font-size: 18px; color: #333; }
 .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
 .btn-primary { background: #1a3a5c; color: white; }
@@ -51,7 +52,7 @@ tr.selected-row td { background: #fff3cd !important; }
 .project-selector { background: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .project-selector label { font-weight: bold; color: #333; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
-.table-wrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid #ddd; }
+.table-wrap { overflow: auto; flex: 1 1 auto; min-height: 0; border: 1px solid #ddd; }
 .filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
 .col-frozen { position: sticky; left: 36px; }
 td.col-frozen { background: white; z-index: 3; }
