@@ -140,24 +140,30 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-danger-lg" onclick="fixOrderItems()" id="fixBtn" style="display:none">🔒 固定する</button>
     <button class="btn btn-success" onclick="exportFixedToExcel()" id="exportBtn" style="display:none">📤 Excel出力（固定済み・未移行分）</button>
+    <!-- 2026/7/29 非表示化：復活させたい時は、このコメント範囲の始まりと終わりの印を外してください
     <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
     <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
     <button class="btn btn-secondary" onclick="clearRowSelection()" id="clearSelectionBtn" style="display:none">選択解除</button>
     <button class="btn btn-danger" onclick="setSelectedYard('D棟')" id="setYardDBtn" style="display:none">🏭 選択行をD棟に変更</button>
     <button class="btn btn-secondary" onclick="setSelectedYard('A棟')" id="setYardBBtn" style="display:none">🏭 選択行をA棟に変更</button>
+    -->
     <span id="selectedCountBadge" class="badge-count" style="display:none"></span>
   </div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
-      <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th><th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
+      <!-- 2026/7/29 非表示化：復活させたい時はこのコメント範囲の印を外してください
+      <th class="col-check"><input type="checkbox" id="selectAllRows" onchange="toggleSelectAll(this)"></th>
+      -->
+      <th class="col-frozen">通しNo</th><th>商社</th><th>メーカー</th><th>暫定納期</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>規格</th><th>長さ</th>
       <th>員数</th><th>重量</th><th>向け先</th><th>受入ヤード</th><th>運送会社</th><th>入荷本数</th><th>未入荷本数</th>
       <th>未入荷重量(Kg)</th><th>備考</th><th>変更日</th><th>変更内容</th><th>操作</th>
     </tr>
     <tr id="filterRow">
-      <td class="col-check"></td><td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
+      <!-- 2026/7/29 非表示化 <td class="col-check"></td> -->
+      <td class="col-frozen"><select class="filter-select" data-field="seq_no" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="trading_company" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="maker" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="filter-select" data-field="tentative_delivery" onchange="applyFilters()"><option value="">(すべて)</option></select></td>
@@ -689,7 +695,7 @@ function clearRowSelection() {
 function renderOrderRows(data) {
   var tbody = document.getElementById('orderBody');
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;color:#999;padding:20px;">該当するデータがありません</td></tr>';
     return;
   }
   tbody.innerHTML = data.map(function(d) {
@@ -703,7 +709,8 @@ function renderOrderRows(data) {
     if (isDelivered) { rowStyle = ' style="background:#e0e0e0;"'; }
     else if (isTransferred) { rowStyle = ' style="background:#dbe9fb;"'; }
     return '<tr' + rowStyle + '>' +
-      '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"' + checkedAttr + ' onchange="toggleRowSelection(this)"></td>' +
+      // 2026/7/29 非表示化：復活させたい時は下の行頭の // を外し、この行を削除してください
+      /* '<td class="col-check"><input type="checkbox" class="row-check" data-id="' + d.id + '"' + checkedAttr + ' onchange="toggleRowSelection(this)"></td>' + */
       ed(d.id, 'seq_no', d.seq_no, 'col-frozen') +
       ed(d.id, 'trading_company', d.trading_company) +
       ed(d.id, 'maker', d.maker) +
@@ -965,12 +972,12 @@ async function loadOrderItems() {
     currentOrderItems = data;
     populateFilters(currentOrderItems);
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;color:#999;padding:20px;">明細データがありません</td></tr>';
       return;
     }
     applyFilters();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
