@@ -1244,30 +1244,73 @@ function openPasteModal() {
   document.getElementById('pasteModal').classList.add('open');
 }
 
+// 貼り付け登録時の必須項目（空だと事故のもとになる5項目）
+var PASTE_REQUIRED_FIELDS = ['seq_no', 'steel_type', 'size', 'standard', 'quantity'];
+
 function previewPaste() {
   var text = document.getElementById('pasteArea').value;
   if (!text.trim()) { alert('データを貼り付けてください'); return; }
 
   var lines = text.split('\n');
+  var errors = [];
   pasteItems = [];
 
-  lines.forEach(function(line) {
+  lines.forEach(function(line, idx) {
     if (!line.trim()) return;
+    var lineNo = idx + 1; // 貼り付けた中の何行目か（Excel上の行と対応させやすいように）
     var cols = line.split('\t');
+
+    // ① 列数チェック：列がズレていないか
+    if (cols.length !== PASTE_COL_MAP.length) {
+      errors.push(lineNo + '行目：列の数がおかしいです（本来' + PASTE_COL_MAP.length + '列のところ、' + cols.length + '列になっています。Excelの列がズレていないか確認してください）');
+      return;
+    }
+
     var item = {};
     PASTE_COL_MAP.forEach(function(m) {
       var val = cols[m.col] !== undefined ? cols[m.col].trim() : '';
       if (NUM_FIELDS.indexOf(m.field) !== -1) {
-        item[m.field] = val === '' ? null : Number(val.replace(/,/g, ''));
+        if (val === '') {
+          item[m.field] = null;
+        } else {
+          var num = Number(val.replace(/,/g, ''));
+          // ② 数字チェック：数字が入るべき欄に、数字に変換できない値が入っていないか
+          if (isNaN(num)) {
+            errors.push(lineNo + '行目：「' + m.label + '」が数字になっていません（入力されていた値：「' + val + '」）');
+          }
+          item[m.field] = num;
+        }
       } else {
         item[m.field] = val || null;
       }
     });
-    // 全フィールドが空の行はスキップ
-    var hasVal = PASTE_COL_MAP.some(function(m) { return item[m.field] !== null && item[m.field] !== ''; });
+
+    // 全フィールドが空の行はスキップ（今まで通り）
+    var hasVal = PASTE_COL_MAP.some(function(m) {
+      var v = item[m.field];
+      return v !== null && v !== '' && !(typeof v === 'number' && isNaN(v));
+    });
     if (!hasVal) return;
+
+    // ③ 必須項目チェック：通しNo・鋼種・サイズ・規格・員数が空でないか
+    PASTE_REQUIRED_FIELDS.forEach(function(f) {
+      var v = item[f];
+      var isEmpty = (v === null || v === '' || (typeof v === 'number' && isNaN(v)));
+      if (isEmpty) {
+        var label = PASTE_COL_MAP.filter(function(m) { return m.field === f; })[0].label;
+        errors.push(lineNo + '行目：「' + label + '」が空です（必須項目です）');
+      }
+    });
+
     pasteItems.push(item);
   });
+
+  // 1件でも問題があれば、登録画面に進ませず、その場でまとめて教える
+  if (errors.length > 0) {
+    pasteItems = [];
+    alert('登録できません。以下の行を直してから、もう一度貼り付けてください。\n（1件でも問題があると、全体を登録できない仕組みにしています）\n\n' + errors.join('\n'));
+    return;
+  }
 
   if (pasteItems.length === 0) { alert('有効なデータが見つかりませんでした'); return; }
 
