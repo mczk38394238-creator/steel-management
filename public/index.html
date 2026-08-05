@@ -143,6 +143,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-excel" onclick="openPasteModal()" id="pasteBtn" style="display:none">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-danger-lg" onclick="fixOrderItems()" id="fixBtn" style="display:none">🔒 固定する</button>
     <button class="btn btn-success" onclick="exportFixedToExcel()" id="exportBtn" style="display:none">📤 Excel出力（固定済み・未移行分）</button>
+    <button class="btn btn-secondary" onclick="clearOrderFilters()">🔄 フィルターを全部外す</button>
     <!-- 2026/7/29 非表示化：復活させたい時は、このコメント範囲の始まりと終わりの印を外してください
     <button class="btn btn-secondary" onclick="copySelectedRows()" id="copySelectedBtn" style="display:none">選択した行をコピー</button>
     <button class="btn btn-success" onclick="addSelectedToArrival()" id="addToArrivalBtn" style="display:none">📦 入荷管理に追加</button>
@@ -208,6 +209,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-success" onclick="bulkSetInstruction(true)">✅ 表示中の行を全て「済」にする</button>
     <button class="btn btn-secondary" onclick="bulkSetInstruction(false)">↩ 表示中の行を全て「未」に戻す</button>
+    <button class="btn btn-secondary" onclick="clearArrivalFilters()">🔄 フィルターを全部外す</button>
     <!-- 2026/8/5 非表示化：開発・テスト用の全件削除ボタン。復活させたい時は、このコメント範囲の始まりと終わりの印を外してください
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
     -->
@@ -234,7 +236,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <td></td>
       <td></td><td></td>
       <td></td><td></td>
-      <td></td>
+      <td><select class="arrival-filter-select" data-field="project_name" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="seq_no" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="trading_company" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="maker" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
@@ -953,6 +955,12 @@ function populateFilters(data) {
   updateFilterOptions();
 }
 
+// 2026/8/5：資材部管理画面のフィルターを全部「(すべて)」に戻す
+function clearOrderFilters() {
+  document.querySelectorAll('.filter-select').forEach(function(sel) { sel.value = ''; });
+  applyFilters();
+}
+
 function applyFilters() {
   var active = getActiveFilters(null);
   var filtered = currentOrderItems.filter(function(d) {
@@ -1553,6 +1561,7 @@ function getArrivalFieldValue(d, field) {
   var oi = d.order_items || {};
   switch (field) {
     case 'instruction_done': return d.instruction_done ? '済' : '未';
+    case 'project_name': return (oi.projects && oi.projects.project_name) || '';
     case 'seq_no': return oi.seq_no;
     case 'trading_company': return oi.trading_company;
     case 'maker': return oi.maker;
@@ -1603,6 +1612,13 @@ function updateArrivalFilterOptions() {
     sel.innerHTML = html;
     if (seen[prevValue]) sel.value = prevValue;
   });
+}
+
+// 2026/8/5：入荷管理画面のフィルター（プルダウン＋契約No検索）を全部リセットする
+function clearArrivalFilters() {
+  document.querySelectorAll('.arrival-filter-select').forEach(function(sel) { sel.value = ''; });
+  document.getElementById('arrivalSearchInput').value = '';
+  applyArrivalFilters();
 }
 
 // 契約Noの検索ボックスと、列ごとのプルダウンフィルターを組み合わせて絞り込む
