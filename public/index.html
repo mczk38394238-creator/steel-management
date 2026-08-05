@@ -344,7 +344,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 
   <!-- Step1: 貼り付け -->
   <div id="pasteStep1">
-    <p style="margin-bottom:8px;font-size:13px;color:#555;">「ロール材」シートのヘッダー行を除くデータ範囲（21列分）をコピーして貼り付けてください。</p>
+    <p style="margin-bottom:8px;font-size:13px;color:#555;">「ロール材」シートのヘッダー行を除くデータ範囲（20列分）をコピーして貼り付けてください。</p>
     <div class="form-group">
       <label>貼り付けエリア</label>
       <textarea id="pasteArea" style="height:200px;font-size:12px;font-family:monospace;" placeholder="ここにExcelからコピーしたデータを貼り付けてください..."></textarea>
@@ -376,7 +376,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
 
   <!-- Step1: 貼り付け -->
   <div id="arrivalPasteStep1">
-    <p style="margin-bottom:8px;font-size:13px;color:#555;">資材部管理画面の「Excel出力」で出力した範囲（id・工事名を含む全列＋末尾に入荷予定日・入荷予定本数を記入したもの）を、ヘッダー行を除いて貼り付けてください。</p>
+    <p style="margin-bottom:8px;font-size:13px;color:#555;">資材部管理画面の「Excel出力」で出力した範囲（id・工事名を含む全列＋末尾に入荷予定日・入荷予定本数・受入ヤードを記入したもの）を、ヘッダー行を除いて貼り付けてください。</p>
     <div class="form-group">
       <label>貼り付けエリア</label>
       <textarea id="arrivalPasteArea" style="height:200px;font-size:12px;font-family:monospace;" placeholder="ここにExcelからコピーしたデータを貼り付けてください..."></textarea>
@@ -864,16 +864,16 @@ function exportFixedToExcel() {
   }
   var sel = document.getElementById('projectSelect');
   var projectName = (sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || '';
-  var header = 'id\t工事名\t' + PASTE_COL_MAP.map(function(m) { return m.label; }).join('\t') + '\t入荷予定日\t入荷予定本数';
+  var header = 'id\t工事名\t' + PASTE_COL_MAP.map(function(m) { return m.label; }).join('\t') + '\t入荷予定日\t入荷予定本数\t受入ヤード';
   var lines = targets.map(function(d) {
     return d.id + '\t' + projectName + '\t' + PASTE_COL_MAP.map(function(m) {
       var v = d[m.field];
       return (v === null || v === undefined) ? '' : String(v);
-    }).join('\t') + '\t\t';
+    }).join('\t') + '\t\t\t' + (d.yard || 'A棟');
   });
   var text = header + '\n' + lines.join('\n');
   navigator.clipboard.writeText(text).then(function() {
-    var msg = targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列と「工事名」列は入荷管理画面への貼り付け時に使う照合・区別用の列です。消さずにそのまま扱ってください。末尾の「入荷予定日」「入荷予定本数」を埋めてから、入荷管理画面に貼り付けてください）';
+    var msg = targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列と「工事名」列は入荷管理画面への貼り付け時に使う照合・区別用の列です。消さずにそのまま扱ってください。「入荷予定日」「入荷予定本数」を埋めて、「受入ヤード」はA棟／D棟のどちらか書き換えたい時だけ直してから、入荷管理画面に貼り付けてください）';
     if (marketMaterialCount > 0) {
       msg += '\n\n（契約No未確定・員数未確定の市中材が ' + marketMaterialCount + ' 件あり、これらは出力対象から除外しています）';
     }
@@ -1168,7 +1168,7 @@ async function deleteItem(id) {
 
 // ===== 入荷管理：Excel貼り付け一括登録 =====
 // 貼り付けデータの列順は、資材部管理画面「Excel出力」の出力形式と対応させている：
-// [0]id [1]工事名 [2〜21]PASTE_COL_MAP（通しNo〜変更内容の20項目） [22]入荷予定日 [23]入荷予定本数
+// [0]id [1]工事名 [2〜21]PASTE_COL_MAP（通しNo〜変更内容の20項目） [22]入荷予定日 [23]入荷予定本数 [24]受入ヤード
 // 日付の変換処理は、下にある既存のparseFlexibleDate関数（入荷予定日の直接編集でも使われているもの）を共用する
 
 var arrivalPasteRows = [];
@@ -1190,14 +1190,20 @@ function previewArrivalPaste() {
   var PROJECT_COL = 1;
   var DATE_COL = 2 + PASTE_COL_MAP.length;
   var QTY_COL = DATE_COL + 1;
+  var YARD_COL = QTY_COL + 1;
+  var yardErrors = [];
 
-  lines.forEach(function(line) {
+  lines.forEach(function(line, idx) {
     if (!line.trim()) return;
     var cols = line.split('\t');
     var idVal = (cols[0] || '').trim();
     if (!idVal) return; // idが空の行はスキップ
     var rawDate = (cols[DATE_COL] || '').trim();
     var parsed = rawDate ? parseFlexibleDate(rawDate) : { ok: true, value: null };
+    var rawYard = (cols[YARD_COL] || '').trim();
+    if (rawYard && rawYard !== 'A棟' && rawYard !== 'D棟') {
+      yardErrors.push((idx + 1) + '行目：「受入ヤード」は「A棟」か「D棟」で入力してください（入力されていた値：「' + rawYard + '」）');
+    }
     arrivalPasteRows.push({
       order_item_id: Number(idVal.replace(/,/g, '')),
       project_name: (cols[PROJECT_COL] || '').trim(),
@@ -1206,11 +1212,18 @@ function previewArrivalPaste() {
       arrival_date_raw: rawDate,
       arrival_date_ok: parsed.ok,
       arrival_date: parsed.ok ? parsed.value : null,
-      arrival_qty: (cols[QTY_COL] || '').trim() || null
+      arrival_qty: (cols[QTY_COL] || '').trim() || null,
+      yard: (rawYard === 'A棟' || rawYard === 'D棟') ? rawYard : null
     });
   });
 
   if (arrivalPasteRows.length === 0) { alert('有効なデータが見つかりませんでした（id列が空の行はスキップされます）'); return; }
+
+  if (yardErrors.length > 0) {
+    arrivalPasteRows = [];
+    alert('登録できません。以下の行を直してから、もう一度貼り付けてください。\n\n' + yardErrors.join('\n'));
+    return;
+  }
 
   // 日付が読み取れなかった行がないかチェックする（元の文字は入っているのに変換できなかった場合のみ警告）
   var badDateRows = arrivalPasteRows.filter(function(r) { return r.arrival_date_raw && !r.arrival_date_ok; });
@@ -1218,10 +1231,10 @@ function previewArrivalPaste() {
     alert('入荷予定日の形式が読み取れない行が ' + badDateRows.length + ' 件あります（例：「' + badDateRows[0].arrival_date_raw + '」）。\n「7/25」「7月25日」「2026-07-25」のような形式で入力し直してください。');
   }
 
-  var thead = '<thead><tr><th>id</th><th>工事名</th><th>通しNo</th><th>契約No</th><th>入荷予定日</th><th>入荷予定本数</th></tr></thead>';
+  var thead = '<thead><tr><th>id</th><th>工事名</th><th>通しNo</th><th>契約No</th><th>入荷予定日</th><th>入荷予定本数</th><th>受入ヤード</th></tr></thead>';
   var tbody = '<tbody>' + arrivalPasteRows.map(function(r) {
     var dateDisplay = r.arrival_date_raw ? (r.arrival_date_ok ? r.arrival_date : '⚠️変換できません(' + r.arrival_date_raw + ')') : '';
-    return '<tr><td>' + r.order_item_id + '</td><td>' + r.project_name + '</td><td>' + r.seq_no + '</td><td>' + r.contract_no + '</td><td>' + dateDisplay + '</td><td>' + (r.arrival_qty || '') + '</td></tr>';
+    return '<tr><td>' + r.order_item_id + '</td><td>' + r.project_name + '</td><td>' + r.seq_no + '</td><td>' + r.contract_no + '</td><td>' + dateDisplay + '</td><td>' + (r.arrival_qty || '') + '</td><td>' + (r.yard || '') + '</td></tr>';
   }).join('') + '</tbody>';
 
   document.getElementById('arrivalPastePreviewTable').innerHTML = thead + tbody;
@@ -1245,7 +1258,7 @@ async function registerArrivalPaste() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rows: arrivalPasteRows.map(function(r) {
-        return { order_item_id: r.order_item_id, arrival_date: r.arrival_date, arrival_qty: r.arrival_qty };
+        return { order_item_id: r.order_item_id, arrival_date: r.arrival_date, arrival_qty: r.arrival_qty, yard: r.yard };
       }) })
     });
     var result = await res.json();
