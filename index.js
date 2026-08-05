@@ -80,9 +80,29 @@ app.delete('/api/projects/:id', async (req, res) => {
 
 app.get('/api/order-items/:projectId', async (req, res) => {
   const { data, error } = await supabase
-    .from('order_items').select('*, arrival_schedules(id)').eq('project_id', req.params.projectId).order('seq_no', { ascending: true });
+    .from('order_items')
+    .select('*, arrival_schedules(id, actual_arrival_qty)')
+    .eq('project_id', req.params.projectId)
+    .order('seq_no', { ascending: true });
   if (error) { console.error('GET /api/order-items:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
+  // 2026/8/5：入荷本数・未入荷本数・未入荷重量は、都度、実績（actual_arrival_qty）の合計から計算し直す。
+  // （こうしておけば、過去に登録済みで一度も実績を編集していない行も、常に正しい数字になる）
+  const result = (data || []).map(function (item) {
+    var arrivedQty = (item.arrival_schedules || []).reduce(function (sum, s) {
+      return sum + (Number(s.actual_arrival_qty) || 0);
+    }, 0);
+    var pendingQty = null, pendingWeight = null;
+    if (item.quantity !== null && item.quantity !== undefined && Number(item.quantity) > 0) {
+      pendingQty = Math.max(0, Number(item.quantity) - arrivedQty);
+      pendingWeight = Math.round((Number(item.weight_kg) || 0) * (pendingQty / Number(item.quantity)));
+    }
+    return Object.assign({}, item, {
+      arrived_qty: arrivedQty,
+      pending_qty: pendingQty,
+      pending_weight_kg: pendingWeight,
+    });
+  });
+  res.json(result);
 });
 
 // 固定：手配が完了した明細を「固定済み」にする（対象物件でまだ固定していない行をまとめて固定）
