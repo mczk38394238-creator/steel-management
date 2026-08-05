@@ -56,17 +56,40 @@ const RELATED_TABLES = [
 ];
 
 async function deleteProjectCascade(projectId) {
-  // order_items のidを先に取得しておく（arrival_schedules・arrivals はこのidを参照しているため）
+  // order_items のidを先に取得しておく（arrival_schedules・cutting_plans等はこのidを参照しているため）
   const { data: items, error: itemsError } = await supabase
     .from('order_items').select('id').eq('project_id', projectId);
   if (itemsError) throw new Error('order_items の取得失敗: ' + itemsError.message);
   const itemIds = (items || []).map(function (i) { return i.id; });
 
   if (itemIds.length > 0) {
+    // 2026/8/5：arrivals テーブルは order_item_id だけでなく、
+    // arrival_schedules を schedule_id で参照している（親子関係）。
+    // なので、必ず arrivals → arrival_schedules の順で先に消す必要がある。
+    const { data: schedules, error: schedGetError } = await supabase
+      .from('arrival_schedules').select('id').in('order_item_id', itemIds);
+    if (schedGetError) throw new Error('arrival_schedules の取得失敗: ' + schedGetError.message);
+    const scheduleIds = (schedules || []).map(function (s) { return s.id; });
+
+    if (scheduleIds.length > 0) {
+      const { error: arrError } = await supabase.from('arrivals').delete().in('schedule_id', scheduleIds);
+      if (arrError) throw new Error('arrivals の削除失敗: ' + arrError.message);
+    }
+    // 念のため、schedule_idでは紐づいていないが order_item_id だけで残っているarrivalsも消しておく
+    const { error: arrError2 } = await supabase.from('arrivals').delete().in('order_item_id', itemIds);
+    if (arrError2) throw new Error('arrivals の削除失敗: ' + arrError2.message);
+
     const { error: schedError } = await supabase.from('arrival_schedules').delete().in('order_item_id', itemIds);
     if (schedError) throw new Error('arrival_schedules の削除失敗: ' + schedError.message);
-    const { error: arrError } = await supabase.from('arrivals').delete().in('order_item_id', itemIds);
-    if (arrError) throw new Error('arrivals の削除失敗: ' + arrError.message);
+
+    // 2026/8/5：まだ本格的に使っていない機能（今後追加予定のもの）だが、
+    // order_item_id で order_items を参照しているため、将来のために先に消しておく
+    const { error: cuttingError } = await supabase.from('cutting_plans').delete().in('order_item_id', itemIds);
+    if (cuttingError) throw new Error('cutting_plans の削除失敗: ' + cuttingError.message);
+    const { error: invoiceError } = await supabase.from('invoices').delete().in('order_item_id', itemIds);
+    if (invoiceError) throw new Error('invoices の削除失敗: ' + invoiceError.message);
+    const { error: millError } = await supabase.from('mill_sheets').delete().in('order_item_id', itemIds);
+    if (millError) throw new Error('mill_sheets の削除失敗: ' + millError.message);
   }
 
   for (const table of RELATED_TABLES) {
