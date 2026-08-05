@@ -191,10 +191,16 @@ app.post('/api/order-items/bulk', async (req, res) => {
 app.get('/api/arrival-schedules', async (req, res) => {
   const { data, error } = await supabase
     .from('arrival_schedules')
-    .select('*, order_items(*, projects(project_name))')
+    .select('*, order_items(*, projects(project_name, status))')
     .order('id', { ascending: true });
   if (error) { console.error('GET /api/arrival-schedules:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json(data || []);
+  // 2026/8/5：物件マスターでゴミ箱に移した（status !== 'active'）物件の行は、
+  // 資材部管理画面と同じように、入荷管理画面にも出さないようにする
+  const filtered = (data || []).filter(function (row) {
+    var proj = row.order_items && row.order_items.projects;
+    return !proj || proj.status === 'active';
+  });
+  res.json(filtered);
 });
 
 // メーカー→運送会社の対応表を取得する窓口
