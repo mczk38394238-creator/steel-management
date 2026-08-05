@@ -1290,7 +1290,9 @@ function previewPaste() {
     PASTE_COL_MAP.forEach(function(m) {
       var val = cols[m.col] !== undefined ? cols[m.col].trim() : '';
       if (NUM_FIELDS.indexOf(m.field) !== -1) {
-        if (val === '') {
+        // 2026/8/5：「***」は市中材（員数・長さが未確定）を表す記号としてExcel上でよく使われるため、
+        // 数字エラーにはせず、空欄（未確定）として扱う。
+        if (val === '' || /^\*+$/.test(val)) {
           item[m.field] = null;
         } else {
           var num = Number(val.replace(/,/g, ''));
