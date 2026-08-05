@@ -204,7 +204,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   </div>
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
-    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="applyArrivalFilters()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
+    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索（一部の数字だけでもOK）" oninput="applyArrivalFilters()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:280px;">
     <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
@@ -235,7 +235,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
       <td><select class="arrival-filter-select" data-field="trading_company" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="maker" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="section" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
-      <td><select class="arrival-filter-select" data-field="contract_no" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td></td>
       <td><select class="arrival-filter-select" data-field="steel_type" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td><select class="arrival-filter-select" data-field="size" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
       <td></td>
