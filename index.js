@@ -296,6 +296,11 @@ app.post('/api/arrival-schedules/paste', async (req, res) => {
     }
     const { data, error } = await supabase.from('arrival_schedules').insert(newRows).select();
     if (error) throw new Error(error.message);
+    // 2026/8/5：貼り付け登録時にも、直接編集の時と同じく実績（arrivals）へ反映する処理を呼び出す
+    // （今まではここが抜けていて、資材部管理画面の「入荷本数」に反映されない不具合があった）
+    for (const row of data) {
+      await syncScheduleToArrivals(row);
+    }
     res.json({ success: true, count: data.length });
   } catch (e) {
     console.error('POST /api/arrival-schedules/paste:', e.message);
