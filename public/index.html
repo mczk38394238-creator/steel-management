@@ -53,7 +53,9 @@ tr.selected-row td { background: #fff3cd !important; }
 .project-selector label { font-weight: bold; color: #333; }
 .project-selector select { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 280px; }
 .table-wrap { overflow: auto; flex: 1 1 auto; min-height: 0; border: 1px solid #ddd; }
-.filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
+.filter-select, .arrival-filter-select { width: 100%; max-width: 120px; font-size: 12px; padding: 2px; }
+.th-plan { background: #dbeeff !important; }
+.th-actual { background: #dcf5e0 !important; }
 .col-frozen { position: sticky; left: 36px; }
 td.col-frozen { background: white; z-index: 3; }
 th.col-frozen { z-index: 6; }
@@ -202,7 +204,7 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   </div>
   <div class="note">※ 全物件を横断して表示します。各セルをクリックすると直接編集できます。「指示書」は枠をクリックすると済/未が切り替わります。同じ契約で複数回に分けて入荷する場合は「＋分納」ボタンで行を追加してください。</div>
   <div class="toolbar">
-    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="filterArrivalRows()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
+    <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索" oninput="applyArrivalFilters()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:240px;">
     <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
   </div>
@@ -212,18 +214,40 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
     <button class="btn btn-primary" onclick="calculateArrivalPlan()">計算して「引取り時期」に書き込む</button>
     <span id="planResultText" style="font-size:13px;color:#1a3a5c;font-weight:bold;"></span>
   </div>
+  <div class="note">※ ヘッダーの色：<span style="background:#dbeeff;padding:2px 8px;">水色</span> = 予定　<span style="background:#dcf5e0;padding:2px 8px;">緑</span> = 実績（実際の入荷）</div>
   <div class="table-wrap">
   <table>
     <thead>
     <tr>
-      <th>引取り時期</th><th>入荷予定日</th><th>入荷予定本数</th>
+      <th>引取り時期</th>
+      <th class="th-plan">入荷予定日</th><th class="th-plan">入荷予定本数</th>
+      <th class="th-actual">実入荷日</th><th class="th-actual">実入荷本数</th>
       <th>工事名</th><th>通しNo</th><th>商社</th><th>メーカー</th><th>工区部位</th>
       <th>契約No</th><th>鋼種</th><th>サイズ</th><th>員数</th><th>重量(Kg)</th>
       <th>指示書</th><th>受入ヤード</th><th>運送会社</th><th>操作</th>
     </tr>
+    <tr id="arrivalFilterRow">
+      <td></td>
+      <td></td><td></td>
+      <td></td><td></td>
+      <td></td>
+      <td><select class="arrival-filter-select" data-field="seq_no" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="trading_company" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="maker" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="section" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="contract_no" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="steel_type" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="size" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td></td>
+      <td></td>
+      <td><select class="arrival-filter-select" data-field="instruction_done" onchange="applyArrivalFilters()"><option value="">(すべて)</option><option value="済">済</option><option value="未">未</option></select></td>
+      <td><select class="arrival-filter-select" data-field="yard" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td><select class="arrival-filter-select" data-field="shipping_company" onchange="applyArrivalFilters()"><option value="">(すべて)</option></select></td>
+      <td></td>
+    </tr>
     </thead>
     <tbody id="arrivalBody">
-      <tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
+      <tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>
     </tbody>
   </table>
   </div>
@@ -1403,7 +1427,7 @@ function switchArrivalTab(tab) {
   document.getElementById('tabSquareCircle').classList.toggle('active', tab === 'square_circle');
   document.getElementById('tabHType').classList.toggle('active', tab === 'h_type');
   document.getElementById('arrivalTitle').textContent = (tab === 'square_circle') ? '□〇入荷管理' : 'H関係入荷管理';
-  renderArrivalRows(currentArrivalSchedules);
+  applyArrivalFilters();
 }
 
 function arrivalEd(id, field, val, isDate) {
@@ -1433,7 +1457,7 @@ function renderArrivalRows(rawData) {
     return cat === currentArrivalCategory || cat === 'other';
   });
   if (!Array.isArray(data) || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
   }
   // 契約全体のうち「すでに案内が来た分」の本数を、order_item_idごとに集計する（重量の計算に使う）
@@ -1475,6 +1499,8 @@ function renderArrivalRows(rawData) {
       arrivalEd(d.id, 'pickup_period', isSplitRow ? '' : d.pickup_period) +
       arrivalEd(d.id, 'arrival_date', d.arrival_date) +
       arrivalEd(d.id, 'arrival_qty', d.arrival_qty) +
+      arrivalEd(d.id, 'actual_arrival_date', d.actual_arrival_date) +
+      arrivalEd(d.id, 'actual_arrival_qty', d.actual_arrival_qty) +
       plainCell(projectName, isSplitRow) +
       plainCell(oi.seq_no, isSplitRow) +
       plainCell(oi.trading_company, isSplitRow) +
@@ -1499,7 +1525,7 @@ function renderArrivalRows(rawData) {
 
 async function loadArrivalSchedules() {
   var tbody = document.getElementById('arrivalBody');
-  tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">読み込み中...</td></tr>';
   try {
     var res = await fetch('/api/arrival-schedules');
     var data = await res.json();
@@ -1507,26 +1533,89 @@ async function loadArrivalSchedules() {
     currentArrivalSchedules = data;
     renderArrivalRows(data);
     document.getElementById('arrivalSearchInput').value = '';
+    updateArrivalFilterOptions();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#dc3545;padding:20px;">読み込みエラー</td></tr>';
   }
 }
 
-// 契約Noで絞り込む（部分一致・大文字小文字を区別しない）
-function filterArrivalRows() {
-  var keyword = document.getElementById('arrivalSearchInput').value.trim().toLowerCase();
-  if (keyword === '') {
-    renderArrivalRows(currentArrivalSchedules);
-    return;
+// 2026/8/5：入荷管理画面のフィルター機能。
+// 資材部管理画面のフィルター（.filter-select / applyFilters）とは別の仕組みとして用意する
+// （項目が order_items 側にあったり arrival_schedules 側にあったりするため、専用の取得関数を用意する）
+function getArrivalFieldValue(d, field) {
+  var oi = d.order_items || {};
+  switch (field) {
+    case 'instruction_done': return d.instruction_done ? '済' : '未';
+    case 'seq_no': return oi.seq_no;
+    case 'trading_company': return oi.trading_company;
+    case 'maker': return oi.maker;
+    case 'section': return oi.section;
+    case 'steel_type': return oi.steel_type;
+    case 'size': return oi.size;
+    case 'yard': return oi.yard;
+    case 'contract_no': return d.contract_no;
+    case 'shipping_company': return d.shipping_company;
+    default: return d[field];
   }
-  var filtered = currentArrivalSchedules.filter(function(d) {
-    return (d.contract_no || '').toLowerCase().indexOf(keyword) !== -1;
+}
+
+function getActiveArrivalFilters(excludeField) {
+  var selects = document.querySelectorAll('.arrival-filter-select');
+  var active = [];
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    var v = sel.value;
+    if (v !== '' && field !== excludeField) active.push({ field: field, value: v });
+  });
+  return active;
+}
+
+function updateArrivalFilterOptions() {
+  var selects = document.querySelectorAll('.arrival-filter-select');
+  selects.forEach(function(sel) {
+    var field = sel.getAttribute('data-field');
+    if (field === 'instruction_done') return; // 済/未は固定の選択肢なので更新しない
+    var prevValue = sel.value;
+    var others = getActiveArrivalFilters(field);
+    var subset = (currentArrivalSchedules || []).filter(function(d) {
+      return others.every(function(f) { return String(getArrivalFieldValue(d, f.field)) === f.value; });
+    });
+    var values = [];
+    var seen = {};
+    subset.forEach(function(d) {
+      var v = getArrivalFieldValue(d, field);
+      if (v === null || v === undefined || v === '') return;
+      var key = String(v);
+      if (!seen[key]) { seen[key] = true; values.push(v); }
+    });
+    values.sort(function(a, b) { return String(a).localeCompare(String(b), 'ja'); });
+    var html = '<option value="">(すべて)</option>';
+    values.forEach(function(v) {
+      html += '<option value="' + String(v).replace(/"/g, '&quot;') + '">' + v + '</option>';
+    });
+    sel.innerHTML = html;
+    if (seen[prevValue]) sel.value = prevValue;
+  });
+}
+
+// 契約Noの検索ボックスと、列ごとのプルダウンフィルターを組み合わせて絞り込む
+function applyArrivalFilters() {
+  var keyword = document.getElementById('arrivalSearchInput').value.trim().toLowerCase();
+  var active = getActiveArrivalFilters(null);
+  var filtered = (currentArrivalSchedules || []).filter(function(d) {
+    if (keyword !== '' && (d.contract_no || '').toLowerCase().indexOf(keyword) === -1) return false;
+    return active.every(function(f) { return String(getArrivalFieldValue(d, f.field)) === f.value; });
   });
   renderArrivalRows(filtered);
+  updateArrivalFilterOptions();
 }
 
+// 互換用：以前の名前で呼ばれても動くようにしておく
+function filterArrivalRows() { applyArrivalFilters(); }
+
 // 日付の入力欄（年を省略して「7/14」のように書いても自動で年を補う）
-var DATE_FIELDS = ['arrival_date', 'shipping_requested_date'];
+var DATE_FIELDS = ['arrival_date', 'shipping_requested_date', 'actual_arrival_date'];
+var ARRIVAL_NUM_FIELDS = ['arrival_qty', 'actual_arrival_qty'];
 
 function parseFlexibleDate(text) {
   text = text.trim();
@@ -1610,14 +1699,14 @@ function makeArrivalEditable(td, id, field) {
       }
       body[field] = parsed.value;
       displayText = newText === '' ? '' : parsed.value;
-    } else if (field === 'arrival_qty') {
+    } else if (ARRIVAL_NUM_FIELDS.indexOf(field) !== -1) {
       if (newText === '') {
         body[field] = null;
       } else {
         var num = Number(newText.replace(/,/g, ''));
         if (isNaN(num)) {
           td.textContent = originalText;
-          alert('入荷予定本数は数字で入力してください');
+          alert((field === 'actual_arrival_qty' ? '実入荷本数' : '入荷予定本数') + 'は数字で入力してください');
           return;
         }
         body[field] = num;
