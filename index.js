@@ -479,12 +479,12 @@ app.delete('/api/arrival-schedules/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// 入荷管理データを全件削除する窓口（テストデータの整理用）
-app.delete('/api/arrival-schedules-all', async (req, res) => {
-  const { error } = await supabase.from('arrival_schedules').delete().neq('id', 0);
-  if (error) { console.error('DELETE /api/arrival-schedules-all:', error.message); return res.status(500).json({ error: error.message }); }
-  res.json({ success: true });
-});
+// 2026/8/5 非表示化：開発・テスト用だったため無効化。復活させたい時は、このコメント範囲の印を外してください
+// app.delete('/api/arrival-schedules-all', async (req, res) => {
+//   const { error } = await supabase.from('arrival_schedules').delete().neq('id', 0);
+//   if (error) { console.error('DELETE /api/arrival-schedules-all:', error.message); return res.status(500).json({ error: error.message }); }
+//   res.json({ success: true });
+// });
 
 // ===== 引取り計画の自動割り振り =====
 
