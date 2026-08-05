@@ -816,7 +816,22 @@ function exportFixedToExcel() {
     var transferred = Array.isArray(d.arrival_schedules) && d.arrival_schedules.length > 0;
     return d.is_fixed && !transferred;
   });
-  if (targets.length === 0) { alert('出力対象（固定済み・未移行）の明細がありません'); return; }
+  // 2026/8/5：市中材（契約Noが空欄、または員数が未確定＝空欄）は、長さ・員数が決まっておらず
+  // 入荷予定を組めないため、入荷管理への出力対象から自動的に除外する。
+  var marketMaterialCount = targets.filter(function(d) {
+    return !d.contract_no || d.quantity === null || d.quantity === undefined;
+  }).length;
+  targets = targets.filter(function(d) {
+    return d.contract_no && d.quantity !== null && d.quantity !== undefined;
+  });
+  if (targets.length === 0) {
+    if (marketMaterialCount > 0) {
+      alert('出力対象（固定済み・未移行）の明細がありません。\n（契約No未確定・員数未確定の市中材が ' + marketMaterialCount + ' 件ありますが、これらは入荷管理へは出力されません）');
+    } else {
+      alert('出力対象（固定済み・未移行）の明細がありません');
+    }
+    return;
+  }
   var sel = document.getElementById('projectSelect');
   var projectName = (sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || '';
   var header = 'id\t工事名\t' + PASTE_COL_MAP.map(function(m) { return m.label; }).join('\t') + '\t入荷予定日\t入荷予定本数';
@@ -828,7 +843,11 @@ function exportFixedToExcel() {
   });
   var text = header + '\n' + lines.join('\n');
   navigator.clipboard.writeText(text).then(function() {
-    alert(targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列と「工事名」列は入荷管理画面への貼り付け時に使う照合・区別用の列です。消さずにそのまま扱ってください。末尾の「入荷予定日」「入荷予定本数」を埋めてから、入荷管理画面に貼り付けてください）');
+    var msg = targets.length + '件をコピーしました。Excelに貼り付けてください。\n（先頭の「id」列と「工事名」列は入荷管理画面への貼り付け時に使う照合・区別用の列です。消さずにそのまま扱ってください。末尾の「入荷予定日」「入荷予定本数」を埋めてから、入荷管理画面に貼り付けてください）';
+    if (marketMaterialCount > 0) {
+      msg += '\n\n（契約No未確定・員数未確定の市中材が ' + marketMaterialCount + ' 件あり、これらは出力対象から除外しています）';
+    }
+    alert(msg);
   }, function() {
     alert('コピーに失敗しました。ブラウザの権限設定をご確認ください。');
   });
@@ -1244,8 +1263,9 @@ function openPasteModal() {
   document.getElementById('pasteModal').classList.add('open');
 }
 
-// 貼り付け登録時の必須項目（空だと事故のもとになる5項目）
-var PASTE_REQUIRED_FIELDS = ['seq_no', 'steel_type', 'size', 'standard', 'quantity'];
+// 貼り付け登録時の必須項目（空だと事故のもとになる4項目）
+// 2026/8/5：「員数」は必須から除外。市中材（員数・長さが未確定）を通しNo管理のために登録できるようにするため。
+var PASTE_REQUIRED_FIELDS = ['seq_no', 'steel_type', 'size', 'standard'];
 
 function previewPaste() {
   var text = document.getElementById('pasteArea').value;
