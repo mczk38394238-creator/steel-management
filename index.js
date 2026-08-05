@@ -415,6 +415,15 @@ app.post('/api/arrival-schedules/paste', async (req, res) => {
     }
     const { data, error } = await supabase.from('arrival_schedules').insert(newRows).select();
     if (error) throw new Error(error.message);
+
+    // 2026/8/5：受入ヤード（A棟／D棟）が一緒に貼り付けられていたら、資材部管理側（order_items）に反映する
+    for (const r of rows) {
+      if (r.yard === 'A棟' || r.yard === 'D棟') {
+        const { error: yardError } = await supabase.from('order_items').update({ yard: r.yard }).eq('id', r.order_item_id);
+        if (yardError) console.error('order_items 受入ヤード更新失敗 (id=' + r.order_item_id + '):', yardError.message);
+      }
+    }
+
     // 2026/8/5：ここで登録するのは「入荷予定」であり「実績」ではないため、
     // 資材部管理画面の入荷本数などへは反映しない（実績は入荷管理画面の「実入荷日・実入荷本数」欄に
     // 入力された時だけ反映される。下のPUTエンドポイントを参照）。
