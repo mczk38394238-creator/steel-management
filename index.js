@@ -451,6 +451,24 @@ app.post('/api/arrival-schedules/:id/split', async (req, res) => {
   }
 });
 
+// 2026/8/5：入荷管理画面で、フィルターで絞り込んだ複数行の「指示書」済/未をまとめて切り替えるための窓口
+// ※ 必ず下の「/:id」より前に書くこと（後ろに書くと「bulk-instruction」という文字列がidとして扱われてしまう）
+app.put('/api/arrival-schedules/bulk-instruction', async (req, res) => {
+  const { ids, done } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: '対象の行がありません' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('arrival_schedules').update({ instruction_done: !!done }).in('id', ids).select();
+    if (error) throw new Error(error.message);
+    res.json({ success: true, count: (data || []).length });
+  } catch (e) {
+    console.error('PUT /api/arrival-schedules/bulk-instruction:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/arrival-schedules/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: '無効なIDです' });
