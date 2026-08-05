@@ -206,7 +206,9 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <div class="toolbar">
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索（一部の数字だけでもOK）" oninput="applyArrivalFilters()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:280px;">
     <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
+    <!-- 2026/8/5 非表示化：開発・テスト用の全件削除ボタン。復活させたい時は、このコメント範囲の始まりと終わりの印を外してください
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
+    -->
   </div>
   <div class="toolbar" style="background:#eef2f6;padding:10px 12px;border-radius:6px;">
     <label style="font-weight:bold;font-size:13px;">📅 引取り計画の自動割り振り：いつまでに受け入れるか</label>
