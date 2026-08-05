@@ -46,9 +46,9 @@ app.put('/api/projects/:id', async (req, res) => {
 
 // 物件に紐づく全関連テーブルを削除するヘルパー
 // 将来テーブルが増えたら RELATED_TABLES に追加するだけでOK
+// 2026/8/5：入荷管理（arrival_schedules・arrivals）は order_items を親として参照しているため、
+// 先に消さないと「子がいるので親を削除できない」エラーになる。なので順番が重要。
 const RELATED_TABLES = [
-  'order_items',
-  // 'arrival_records',   // 入荷管理（追加予定）
   // 'mill_sheets',       // ミルシート（追加予定）
   // 'invoices',          // 請求（追加予定）
   // 'connections',       // 取合（追加予定）
@@ -56,10 +56,26 @@ const RELATED_TABLES = [
 ];
 
 async function deleteProjectCascade(projectId) {
+  // order_items のidを先に取得しておく（arrival_schedules・arrivals はこのidを参照しているため）
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items').select('id').eq('project_id', projectId);
+  if (itemsError) throw new Error('order_items の取得失敗: ' + itemsError.message);
+  const itemIds = (items || []).map(function (i) { return i.id; });
+
+  if (itemIds.length > 0) {
+    const { error: schedError } = await supabase.from('arrival_schedules').delete().in('order_item_id', itemIds);
+    if (schedError) throw new Error('arrival_schedules の削除失敗: ' + schedError.message);
+    const { error: arrError } = await supabase.from('arrivals').delete().in('order_item_id', itemIds);
+    if (arrError) throw new Error('arrivals の削除失敗: ' + arrError.message);
+  }
+
   for (const table of RELATED_TABLES) {
     const { error } = await supabase.from(table).delete().eq('project_id', projectId);
     if (error) throw new Error(table + ' の削除失敗: ' + error.message);
   }
+
+  const { error: orderError } = await supabase.from('order_items').delete().eq('project_id', projectId);
+  if (orderError) throw new Error('order_items の削除失敗: ' + orderError.message);
 }
 
 app.delete('/api/projects/:id', async (req, res) => {
