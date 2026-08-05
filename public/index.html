@@ -206,6 +206,8 @@ body.selecting th, body.selecting td.col-frozen, body.selecting #filterRow td { 
   <div class="toolbar">
     <input type="text" id="arrivalSearchInput" placeholder="契約Noで検索（一部の数字だけでもOK）" oninput="applyArrivalFilters()" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:280px;">
     <button class="btn btn-excel" onclick="openArrivalPasteModal()">📋 Excelから貼り付けて登録</button>
+    <button class="btn btn-success" onclick="bulkSetInstruction(true)">✅ 表示中の行を全て「済」にする</button>
+    <button class="btn btn-secondary" onclick="bulkSetInstruction(false)">↩ 表示中の行を全て「未」に戻す</button>
     <!-- 2026/8/5 非表示化：開発・テスト用の全件削除ボタン。復活させたい時は、このコメント範囲の始まりと終わりの印を外してください
     <button class="btn btn-danger-lg" onclick="deleteAllArrivalRows()">🗑 全件削除（テスト用）</button>
     -->
@@ -1413,6 +1415,7 @@ async function registerPaste() {
 
 // ===== 入荷管理 =====
 var currentArrivalSchedules = [];
+var currentDisplayedArrivalIds = [];
 var currentArrivalCategory = 'square_circle'; // 表示中のタブ（square_circle = □〇 / h_type = H関係）
 
 // 鋼種から「□〇」グループか「H関係」グループかを判定する
@@ -1458,6 +1461,8 @@ function renderArrivalRows(rawData) {
     var cat = categorizeSteelType(oi.steel_type);
     return cat === currentArrivalCategory || cat === 'other';
   });
+  // 2026/8/5：今まさに画面に表示されている行のIDを覚えておく（「表示中を一括で済にする」ボタンで使う）
+  currentDisplayedArrivalIds = data.map(function(d) { return d.id; });
   if (!Array.isArray(data) || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;color:#999;padding:20px;">まだ登録されたデータがありません。資材部管理画面で行を選び「入荷管理に追加」してください。</td></tr>';
     return;
@@ -1733,6 +1738,30 @@ function makeArrivalEditable(td, id, field) {
       alert('通信エラー: ' + e.message);
     }
   });
+}
+
+// 2026/8/5：フィルターで絞り込んで、今表示されている行だけをまとめて「済」または「未」にする
+async function bulkSetInstruction(done) {
+  var ids = currentDisplayedArrivalIds || [];
+  if (ids.length === 0) { alert('対象の行がありません（フィルターで何も表示されていません）'); return; }
+  var label = done ? '済' : '未';
+  if (!confirm('今表示されている ' + ids.length + ' 件の指示書を、まとめて「' + label + '」にしますか？')) return;
+  try {
+    var res = await fetch('/api/arrival-schedules/bulk-instruction', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, done: done })
+    });
+    var result = await res.json();
+    if (res.ok) {
+      alert(result.count + '件を「' + label + '」にしました。');
+      loadArrivalSchedules();
+    } else {
+      alert('更新に失敗しました: ' + (result.error || ''));
+    }
+  } catch (e) {
+    alert('通信エラー: ' + e.message);
+  }
 }
 
 async function toggleInstruction(id, newValue) {
