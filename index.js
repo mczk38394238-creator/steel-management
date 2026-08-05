@@ -134,7 +134,23 @@ app.post('/api/order-items/bulk', async (req, res) => {
       const { error: deleteError } = await supabase.from('order_items').delete().eq('project_id', project_id);
       if (deleteError) throw new Error(deleteError.message);
     }
-    const rows = items.map(item => ({ ...item, project_id }));
+    // 2026/8/5：入荷本数・未入荷本数・未入荷重量は、実績（入荷管理画面の実入荷本数）から
+    // 自動計算する仕組みに変更したため、新規登録の時点では「まだ実績0件」の初期値で上書きする。
+    // （員数が未確定の市中材は、そのままnullにしておく）
+    const rows = items.map(item => {
+      var quantity = item.quantity;
+      var pendingQty = null, pendingWeight = null;
+      if (quantity !== null && quantity !== undefined && Number(quantity) > 0) {
+        pendingQty = Number(quantity);
+        pendingWeight = Number(item.weight_kg) || 0;
+      }
+      return Object.assign({}, item, {
+        project_id: project_id,
+        arrived_qty: 0,
+        pending_qty: pendingQty,
+        pending_weight_kg: pendingWeight,
+      });
+    });
     const { data, error } = await supabase.from('order_items').insert(rows).select();
     if (error) throw new Error(error.message);
     res.json({ success: true, count: data.length });
@@ -186,10 +202,13 @@ async function resolveCarrier(maker, contractNo) {
 }
 
 // 入荷予定（arrival_schedules）の1行を、実績（arrivals）に反映するヘルパー
-// 入荷日・入荷本数の両方が入っている行だけを対象に、対応する実績行を作成・更新する
+// 2026/8/5：「予定（arrival_date/arrival_qty）」と「実績（actual_arrival_date/actual_arrival_qty）」を
+// 明確に分けるため、ここで参照する列を実績側に変更した。
+// 実績の日・本数の両方が入っている行だけを対象に、対応する実績行を作成・更新する
 // すでに実績行がある場合（schedule_idで判定）は新規作成せず上書き更新する
 async function syncScheduleToArrivals(scheduleRow) {
-  if (!scheduleRow || !scheduleRow.arrival_date || scheduleRow.arrival_qty === null || scheduleRow.arrival_qty === undefined) {
+  if (!scheduleRow || !scheduleRow.actual_arrival_date ||
+      scheduleRow.actual_arrival_qty === null || scheduleRow.actual_arrival_qty === undefined) {
     return;
   }
   try {
@@ -200,8 +219,8 @@ async function syncScheduleToArrivals(scheduleRow) {
     const payload = {
       order_item_id: scheduleRow.order_item_id,
       project_id: oi ? oi.project_id : null,
-      arrival_date: scheduleRow.arrival_date,
-      arrived_qty: scheduleRow.arrival_qty,
+      arrival_date: scheduleRow.actual_arrival_date,
+      arrived_qty: scheduleRow.actual_arrival_qty,
       schedule_id: scheduleRow.id,
     };
     if (existing) {
@@ -211,6 +230,41 @@ async function syncScheduleToArrivals(scheduleRow) {
     }
   } catch (e) {
     console.error('syncScheduleToArrivals:', e.message);
+  }
+}
+
+// 2026/8/5：資材部管理画面の「入荷本数・未入荷本数・未入荷重量」を、実績（actual_arrival_qty）から
+// 自動計算して書き戻すヘルパー。実績が1件も無い場合は「入荷本数0・未入荷本数＝員数の全部」になる。
+// 契約Noや員数が未確定の市中材（quantityがnull）の場合は、計算せずnullのままにする。
+async function recalcOrderItemArrival(orderItemId) {
+  if (!orderItemId) return;
+  try {
+    const { data: schedules, error: schedError } = await supabase
+      .from('arrival_schedules').select('actual_arrival_qty').eq('order_item_id', orderItemId);
+    if (schedError) throw new Error(schedError.message);
+    const arrivedQty = (schedules || []).reduce(function (sum, r) {
+      return sum + (Number(r.actual_arrival_qty) || 0);
+    }, 0);
+
+    const { data: oi, error: oiError } = await supabase
+      .from('order_items').select('quantity, weight_kg').eq('id', orderItemId).maybeSingle();
+    if (oiError) throw new Error(oiError.message);
+    if (!oi) return;
+
+    var pendingQty = null;
+    var pendingWeight = null;
+    if (oi.quantity !== null && oi.quantity !== undefined && Number(oi.quantity) > 0) {
+      pendingQty = Math.max(0, Number(oi.quantity) - arrivedQty);
+      pendingWeight = Math.round((Number(oi.weight_kg) || 0) * (pendingQty / Number(oi.quantity)));
+    }
+
+    await supabase.from('order_items').update({
+      arrived_qty: arrivedQty,
+      pending_qty: pendingQty,
+      pending_weight_kg: pendingWeight,
+    }).eq('id', orderItemId);
+  } catch (e) {
+    console.error('recalcOrderItemArrival:', e.message);
   }
 }
 
@@ -296,11 +350,9 @@ app.post('/api/arrival-schedules/paste', async (req, res) => {
     }
     const { data, error } = await supabase.from('arrival_schedules').insert(newRows).select();
     if (error) throw new Error(error.message);
-    // 2026/8/5：貼り付け登録時にも、直接編集の時と同じく実績（arrivals）へ反映する処理を呼び出す
-    // （今まではここが抜けていて、資材部管理画面の「入荷本数」に反映されない不具合があった）
-    for (const row of data) {
-      await syncScheduleToArrivals(row);
-    }
+    // 2026/8/5：ここで登録するのは「入荷予定」であり「実績」ではないため、
+    // 資材部管理画面の入荷本数などへは反映しない（実績は入荷管理画面の「実入荷日・実入荷本数」欄に
+    // 入力された時だけ反映される。下のPUTエンドポイントを参照）。
     res.json({ success: true, count: data.length });
   } catch (e) {
     console.error('POST /api/arrival-schedules/paste:', e.message);
@@ -340,15 +392,25 @@ app.put('/api/arrival-schedules/:id', async (req, res) => {
   const { data, error } = await supabase.from('arrival_schedules').update(req.body).eq('id', id).select();
   if (error) { console.error('PUT /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
   const updatedRow = data && data[0] ? data[0] : null;
-  if (updatedRow) await syncScheduleToArrivals(updatedRow);
+  if (updatedRow) {
+    await syncScheduleToArrivals(updatedRow);
+    // 2026/8/5：実績（actual_arrival_qty）を編集した時は、資材部管理画面の入荷本数などを再計算する
+    if (Object.prototype.hasOwnProperty.call(req.body, 'actual_arrival_qty')) {
+      await recalcOrderItemArrival(updatedRow.order_item_id);
+    }
+  }
   res.json(updatedRow || { success: true });
 });
 
 app.delete('/api/arrival-schedules/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: '無効なIDです' });
+  // 2026/8/5：削除する行にも実績が入っていた可能性があるので、削除前にorder_item_idを控えておき、
+  // 削除後に資材部管理画面側の自動計算をやり直す
+  const { data: target } = await supabase.from('arrival_schedules').select('order_item_id').eq('id', id).maybeSingle();
   const { error } = await supabase.from('arrival_schedules').delete().eq('id', id);
   if (error) { console.error('DELETE /api/arrival-schedules/' + id + ':', error.message); return res.status(500).json({ error: error.message }); }
+  if (target) await recalcOrderItemArrival(target.order_item_id);
   res.json({ success: true });
 });
 
